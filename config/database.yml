@@ -16,19 +16,29 @@ test:
   username: jorch
   host: /var/run/postgresql
 
-# En producción definimos TRES roles de conexión:
-# - primary  -> tu app (ActiveRecord)
-# - cable    -> Solid Cable (ActionCable)
-# - queue    -> Solid Queue (jobs)
+# En producción definimos CUATRO roles de conexión:
+# - primary -> tu app (ActiveRecord)
+# - cable   -> Solid Cable (ActionCable)
+# - queue   -> Solid Queue (jobs)
+# - cache   -> Solid Cache (cache store en BD)
 production:
   primary:
     <<: *default
+    # Render provee DATABASE_URL (incluye usuario, pass, host, puerto y db)
     url: <%= ENV["DATABASE_URL"] %>
 
   cable:
     <<: *default
+    # Permite sobreescribir con CABLE_DATABASE_URL; si no existe, usa DATABASE_URL
     url: <%= ENV.fetch("CABLE_DATABASE_URL", ENV["DATABASE_URL"]) %>
 
   queue:
     <<: *default
+    # Permite sobreescribir con QUEUE_DATABASE_URL; si no existe, usa DATABASE_URL
     url: <%= ENV.fetch("QUEUE_DATABASE_URL", ENV["DATABASE_URL"]) %>
+
+  cache:
+    <<: *default
+    # 🔧 Faltaba esta conexión para Solid Cache
+    # Permite sobreescribir con CACHE_DATABASE_URL; si no existe, usa DATABASE_URL
+    url: <%= ENV.fetch("CACHE_DATABASE_URL", ENV["DATABASE_URL"]) %>
