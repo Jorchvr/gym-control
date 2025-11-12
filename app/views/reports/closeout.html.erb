@@ -1,37 +1,11 @@
-<%= stylesheet_link_tag "main_panel", media: "all" %>
-
-<div class="header-row">
-  <h2 class="title">Corte del Día</h2>
-  <div style="display:flex; gap:.6rem; flex-wrap:wrap;">
-    <%= link_to "Inicio", authenticated_root_path, class: "btn" %>
-  </div>
-</div>
-
-<div class="grid-2" style="gap:1rem;">
-  <div class="card">
-    <h3 class="card-title">Resumen</h3>
-    <div class="kv"><span>Usuario</span><span><%= @user_name %></span></div>
-    <div class="kv"><span>Fecha</span><span><%= @date.to_s %></span></div>
-    <div class="kv"><span>Operaciones</span><span><%= @ops_count %></span></div>
-    <div class="kv"><span>Total</span><span><%= number_to_currency(@total_cents/100.0, unit: "MXN $", precision: 2) %></span></div>
-    <div class="kv"><span>Efectivo</span><span><%= number_to_currency(@by_method["cash"]/100.0, unit: "MXN $", precision: 2) %></span></div>
-    <div class="kv"><span>Transferencia</span><span><%= number_to_currency(@by_method["transfer"]/100.0, unit: "MXN $", precision: 2) %></span></div>
-  </div>
-
-  <div class="card">
-    <h3 class="card-title">Indicadores del día</h3>
-    <div class="kv"><span>Nuevos clientes</span><span><%= @new_clients_today %></span></div>
-    <div class="kv"><span>Entradas (check-ins)</span><span><%= @checkins_today %></span></div>
-    <div class="kv"><span>Stock total actual</span><span><%= @stock_total_units %> uds</span></div>
-  </div>
-</div>
-
 <div class="card" style="margin-top:1rem;">
   <h3 class="card-title">Movimientos del turno</h3>
-  <% if @transactions.any? %>
-    <div class="corte-scroll">
-      <table class="table">
-        <thead><tr><th>Hora</th><th>Detalle</th><th>Método</th><th>Monto</th></tr></thead>
+  <div style="max-height: 380px; overflow-y: auto; overscroll-behavior: contain;">
+    <% if @transactions.any? %>
+      <table class="table" style="position: relative;">
+        <thead style="position: sticky; top: 0; background: rgba(0,0,0,.15); backdrop-filter: blur(2px);">
+          <tr><th>Hora</th><th>Detalle</th><th>Método</th><th>Monto</th></tr>
+        </thead>
         <tbody>
           <% @transactions.each do |t| %>
             <tr>
@@ -43,19 +17,18 @@
           <% end %>
         </tbody>
       </table>
-    </div>
-  <% else %>
-    <p class="text-muted">Sin movimientos en el turno.</p>
-  <% end %>
+    <% else %>
+      <p class="text-muted">Sin movimientos en el turno.</p>
+    <% end %>
+  </div>
 </div>
 
-<!-- ===== Detalle por producto vendido en el turno ===== -->
 <div class="card" style="margin-top:1rem;">
   <h3 class="card-title">Productos vendidos (detalle del turno)</h3>
-  <% if @sold_by_product.present? && @sold_by_product.any? %>
-    <div class="corte-scroll">
-      <table class="table">
-        <thead>
+  <div style="max-height: 380px; overflow-y: auto; overscroll-behavior: contain;">
+    <% if @sold_by_product.present? && @sold_by_product.any? %>
+      <table class="table" style="position: relative;">
+        <thead style="position: sticky; top: 0; background: rgba(0,0,0,.15); backdrop-filter: blur(2px);">
           <tr>
             <th>Producto</th>
             <th style="text-align:right;">Vendido (uds)</th>
@@ -74,8 +47,8 @@
           <% end %>
         </tbody>
       </table>
-    </div>
-  <% else %>
-    <p class="text-muted">No se vendieron productos en el turno.</p>
-  <% end %>
+    <% else %>
+      <p class="text-muted">No se vendieron productos en el turno.</p>
+    <% end %>
+  </div>
 </div>
