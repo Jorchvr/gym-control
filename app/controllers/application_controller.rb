@@ -1,16 +1,13 @@
-# app/controllers/application_controller.rb
 class ApplicationController < ActionController::Base
   protect_from_forgery with: :exception
 
-  # 👇 Usa un layout distinto para controladores de Devise
-  layout :layout_by_resource
+  # 🔧 Desactivar el filtro que invalida la sesión entre workers en producción
+  before_action :enforce_boot_session, unless: -> { Rails.env.production? }
 
-  before_action :enforce_boot_session
   before_action :configure_permitted_parameters, if: :devise_controller?
 
   helper_method :two_factor_ok?
 
-  # --- Navegación tras login/logout ---
   def after_sign_in_path_for(resource)
     stored_location_for(resource) || authenticated_root_path
   end
@@ -20,22 +17,10 @@ class ApplicationController < ActionController::Base
     new_user_session_path
   end
 
-  # === 2FA desactivado: devolvemos true y no bloqueamos nada ===
-  def two_factor_ok?
-    true
-  end
-
-  def require_two_factor!
-    # No-op: dejamos pasar siempre
-    true
-  end
+  def two_factor_ok?; true; end
+  def require_two_factor!; true; end
 
   private
-
-  # 👇 Selección de layout: "devise" para sesiones/registro, "application" para lo demás
-  def layout_by_resource
-    devise_controller? ? "devise" : "application"
-  end
 
   def require_superuser!
     unless current_user&.superuser?
@@ -43,17 +28,17 @@ class ApplicationController < ActionController::Base
     end
   end
 
+  # Este filtro queda activo SOLO fuera de producción
   def enforce_boot_session
-    # Si definiste config.x.boot_id en initializers, esto fuerza nueva sesión por release
     boot_id  = Rails.application.config.x.boot_id
-    sess_boot = session[:boot_id]
+    sess_id  = session[:boot_id]
 
-    if sess_boot.nil?
+    if sess_id.nil?
       session[:boot_id] = boot_id
       return
     end
 
-    if sess_boot != boot_id
+    if sess_id != boot_id
       sign_out(current_user) if user_signed_in?
       reset_session
       redirect_to new_user_session_path
@@ -63,7 +48,7 @@ class ApplicationController < ActionController::Base
   protected
 
   def configure_permitted_parameters
-    devise_parameter_sanitizer.permit(:sign_up,        keys: [ :name, :superuser ])
-    devise_parameter_sanitizer.permit(:account_update, keys: [ :name, :superuser ])
+    devise_parameter_sanitizer.permit(:sign_up,        keys: %i[name superuser])
+    devise_parameter_sanitizer.permit(:account_update, keys: %i[name superuser])
   end
 end
