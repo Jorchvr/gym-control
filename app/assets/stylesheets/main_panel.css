@@ -39,12 +39,12 @@
       linear-gradient(180deg, #0f1115, #0b0d12);
     color: var(--text);
     font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
-    overflow: hidden;
+    overflow: visible;
   }
 
   /* Layout base */
-  .split-container { display: flex; height: 100vh; }
-  .panel { flex: 1; padding: var(--space-lg); overflow-y: auto; }
+  .split-container { display: flex; min-height: 100vh; height: auto; }
+  .panel { flex: 1; padding: var(--space-lg); overflow: visible; }
   .gym-panel { background: var(--panel-left-bg); border-right: 1px solid var(--border); }
   .shop-panel { background: var(--panel-right-bg); }
 
