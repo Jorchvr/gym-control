@@ -22,10 +22,14 @@ class Client < ApplicationRecord
   before_validation :normalize_measures
   before_validation :ensure_client_number
 
+  # ===== NUEVOS PRECIOS DE INSCRIPCIÓN (EN CENTAVOS) =====
+  # Día:  $30.00
+  # Semana: $120.00
+  # Mes: $265.00
   PRICES = {
     "day"   => 30_00,
-    "week"  => 70_00,
-    "month" => 200_00
+    "week"  => 120_00,
+    "month" => 265_00
   }.freeze
 
   def price_cents

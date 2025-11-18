@@ -22,7 +22,14 @@
       <div class="form-row">
         <%= f.label :membership_type, "Membresía", class: "label" %>
         <%= f.select :membership_type,
-          options_for_select([["Día","day"],["Semana","week"],["Mes","month"]], @client.membership_type),
+          options_for_select(
+            [
+              ["Día - $30",   "day"],
+              ["Semana - $120", "week"],
+              ["Mes - $265",  "month"]
+            ],
+            @client.membership_type
+          ),
           { include_blank: "Sin plan" },
           class: "form-select" %>
       </div>

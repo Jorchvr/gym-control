@@ -117,8 +117,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_03_000000) do
   create_table "store_sale_items", force: :cascade do |t|
     t.bigint "store_sale_id", null: false
     t.bigint "product_id", null: false
-    t.integer "quantity"
-    t.integer "unit_price_cents"
+    t.integer "quantity", null: false
+    t.integer "unit_price_cents", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["product_id"], name: "index_store_sale_items_on_product_id"
@@ -127,11 +127,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_03_000000) do
 
   create_table "store_sales", force: :cascade do |t|
     t.bigint "user_id", null: false
-    t.integer "payment_method"
-    t.integer "total_cents"
-    t.datetime "occurred_at"
+    t.integer "payment_method", default: 0, null: false
+    t.integer "total_cents", default: 0, null: false
+    t.datetime "occurred_at", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["occurred_at"], name: "index_store_sales_on_occurred_at"
     t.index ["user_id"], name: "index_store_sales_on_user_id"
   end
 

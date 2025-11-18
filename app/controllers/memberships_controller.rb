@@ -1,13 +1,18 @@
+# app/controllers/memberships_controller.rb
 class MembershipsController < ApplicationController
   before_action :authenticate_user!
 
-  # Precios en centavos ($265.00 => 26500)
+  # Precios en centavos
+  # Día:   $30.00
+  # Semana:$120.00
+  # Mes atraso:     $265.00
+  # Mensualidad puntual: $250.00
   PRICES = {
-    day:            1500,    # $15.00
-    week:           5000,    # $50.00
-    month:          26500,   # $265.00 (compatibilidad si en algún lugar aún se usa "month")
-    month_late:     26500,   # $265.00  (Mes atraso)
-    month_on_time:  25000    # $250.00  (Mensualidad puntual)
+    day:           3000,   # $30.00
+    week:          12000,  # $120.00
+    month:         26500,  # $265.00 (compatibilidad)
+    month_late:    26500,  # $265.00  (Mes atraso)
+    month_on_time: 25000   # $250.00  (Mensualidad puntual)
   }.freeze
 
   # GET /memberships?q=...

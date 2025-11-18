@@ -1,8 +1,15 @@
-<%= stylesheet_link_tag "main_panel", media: "all", "data-turbo-track": "reload" %>
+<%= stylesheet_link_tag "main_panel",  media: "all", "data-turbo-track": "reload" %>
 <% content_for :body_class, "allow-scroll" %>
 
-<% # Precios por defecto desde Client::PRICES (centavos) con fallback %>
-<% prices = (defined?(Client) && Client.const_defined?(:PRICES)) ? Client::PRICES : { "day" => 3000, "week" => 7000, "month" => 20000 } %>
+<% # ===== Precios por defecto desde Client::PRICES (centavos) con fallback ===== %>
+<% prices =
+     if defined?(Client) && Client.const_defined?(:PRICES)
+       Client::PRICES
+     else
+       # Fallback: Día 30, Semana 120, Mes 265
+       { "day" => 3000, "week" => 12000, "month" => 26500 }
+     end %>
+
 <% d = (prices["day"].to_i   / 100.0) %>
 <% w = (prices["week"].to_i  / 100.0) %>
 <% m = (prices["month"].to_i / 100.0) %>
