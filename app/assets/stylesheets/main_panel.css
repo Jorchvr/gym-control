@@ -870,3 +870,101 @@ body[class*="fixed"], body.fixed {
   top: 0;
   z-index: 50;
 }
+/* ======== Panel derecho: split mitad arriba / mitad abajo ======== */
+
+.shop-panel .shop-body-split {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 1rem;
+}
+
+.shop-panel .shop-top,
+.shop-panel .shop-bottom {
+  flex: 1;          /* mismas mitades */
+  min-height: 0;    /* permite scroll interno si hace falta */
+}
+
+/* Que el carrito llene su mitad */
+.shop-panel .shop-bottom .mini-cart {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.shop-panel .mini-cart-body {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+/* ======== Grid 5x2 de cuadrados de producto ======== */
+
+.product-grid-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.product-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-rows: repeat(2, 1fr); /* 2 filas */
+  gap: 0.75rem;
+}
+
+/* Botón-cuadro */
+.product-square-btn,
+.product-square-empty {
+  border-radius: 0.9rem;
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  background: rgba(15, 15, 20, 0.96);
+  padding: 0.55rem 0.6rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.product-square-btn {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+}
+
+.product-square-btn:hover {
+  border-color: rgba(248, 113, 113, 0.9);
+  box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.35);
+  transform: translateY(-1px);
+}
+
+.product-square-name {
+  font-weight: 600;
+  line-height: 1.2;
+  font-size: 0.85rem;
+}
+
+.product-square-footer {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  opacity: 0.9;
+}
+
+.product-square-price {
+  font-weight: 600;
+}
+
+.product-square-stock {
+  color: rgba(148, 163, 184, 0.95);
+}
+
+/* Cuadros vacíos solo para completar la grilla 5x2 */
+.product-square-empty {
+  opacity: 0.15;
+  pointer-events: none;
+}
