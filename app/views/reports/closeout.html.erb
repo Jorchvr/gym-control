@@ -33,22 +33,32 @@
       </section>
 
       <!-- ========== RESUMEN GENERAL ========== -->
-      <% membership_total_cents =
-           (@transactions || []).select { |t| t[:label].to_s.start_with?("Membresía") }
-                               .sum { |t| t[:amount_cents].to_i }
+      <% txs = (@transactions || [])
+
+         membership_total_cents =
+           txs.select { |t| t[:label].to_s.start_with?("Membresía") }
+              .sum { |t| t[:amount_cents].to_i }
 
          store_total_cents =
-           (@transactions || []).select { |t|
+           txs.select { |t|
              t[:label].to_s.start_with?("Tienda") && t[:amount_cents].to_i >= 0
            }.sum { |t| t[:amount_cents].to_i }
 
          adjustments_cents =
-           (@transactions || []).select { |t| t[:amount_cents].to_i < 0 }
-                               .sum { |t| t[:amount_cents].to_i }
+           txs.select { |t| t[:amount_cents].to_i < 0 }
+              .sum { |t| t[:amount_cents].to_i }
 
-         # 🔐 Evitar error cuando @by_method es nil
-         cash_cents     = (@by_method || {})["cash"].to_i
-         transfer_cents = (@by_method || {})["transfer"].to_i
+         # 🔢 Recalcular métodos de pago SOLO con las transacciones
+         cash_cents = 0
+         transfer_cents = 0
+         txs.each do |t|
+           case t[:payment_method].to_s
+           when "cash"
+             cash_cents += t[:amount_cents].to_i
+           when "transfer"
+             transfer_cents += t[:amount_cents].to_i
+           end
+         end
       %>
 
       <section class="ticket-section">
