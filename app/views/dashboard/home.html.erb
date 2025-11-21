@@ -142,11 +142,6 @@
       <%= link_to "Clases (Griselle)", griselle_cart_path, class: "btn btn-accent" %>
       <%= link_to "Historial de transacciones", history_path, class: "btn" %>
       <%= link_to "Corte del día (ticket)", closeout_path, class: "btn" %>
-
-      <% if is_superuser? %>
-        <%= link_to "Ventas (registro)", sales_path, class: "btn" %>
-        <%= link_to "Descargar Excel del día", reports_daily_export_excel_path, class: "btn" %>
-      <% end %>
     </div>
   </div>
 
