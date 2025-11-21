@@ -3,8 +3,6 @@ class SalesController < ApplicationController
   before_action :authenticate_user!
 
   # GET /sales
-  # Por defecto: ventas del usuario actual en la fecha indicada (o hoy).
-  # Superusuario puede ver otro usuario con ?user_id=ID o todas con ?all=1
   def index
     @date =
       if params[:date].present?
@@ -16,10 +14,8 @@ class SalesController < ApplicationController
     from = @date.beginning_of_day
     to   = @date.end_of_day
 
-    # Por defecto filtra por usuario actual
     user_scope_id = current_user.id
 
-    # Si es superusuario, puede ver todas (?all=1) o por user_id específico
     if superuser?
       if params[:all].present?
         user_scope_id = nil
@@ -28,7 +24,6 @@ class SalesController < ApplicationController
       end
     end
 
-    # Ventas de membresía (Sale)
     sales_scope =
       if defined?(Sale)
         Sale.where("COALESCE(sales.occurred_at, sales.created_at) BETWEEN ? AND ?", from, to)
@@ -36,7 +31,6 @@ class SalesController < ApplicationController
         Sale.none
       end
 
-    # Ventas de tienda (StoreSale), incluyendo Griselle
     store_sales_scope =
       if defined?(StoreSale)
         StoreSale.where("COALESCE(store_sales.occurred_at, store_sales.created_at) BETWEEN ? AND ?", from, to)
@@ -91,9 +85,6 @@ class SalesController < ApplicationController
   # SECCIÓN PROTEGIDA: AJUSTES / VENTAS NEGATIVAS (SOLO TIENDA ONLINE)
   # =====================================================
 
-  # GET /sales/adjustments
-  # 1) Si no está desbloqueado, muestra formulario de código.
-  # 2) Si ya está desbloqueado, muestra SOLO ventas de TIENDA (productos) del día del usuario.
   def adjustments
     @date = Time.zone.today
     @from = @date.beginning_of_day
@@ -107,12 +98,8 @@ class SalesController < ApplicationController
     scope = StoreSale.where("COALESCE(store_sales.occurred_at, store_sales.created_at) BETWEEN ? AND ?", @from, @to)
     scope = scope.where(user_id: current_user.id) unless superuser?
 
-    # Incluimos items y productos
     store_sales = scope.includes(:user, store_sale_items: :product).to_a
 
-    # Filtramos SOLO ventas de PRODUCTOS de tienda online:
-    # - Excluye ventas que sean solo "Servicio Griselle" (clases).
-    # - Excluye ventas sin items.
     @store_sales = store_sales.select do |ss|
       ss.store_sale_items.any? do |it|
         prod = it.product
@@ -130,7 +117,7 @@ class SalesController < ApplicationController
     ok =
       code.present? &&
       expected.present? &&
-      code.length == expected.length && # evita error en secure_compare
+      code.length == expected.length &&
       ActiveSupport::SecurityUtils.secure_compare(code, expected)
 
     if ok
@@ -143,8 +130,6 @@ class SalesController < ApplicationController
   end
 
   # POST /sales/reverse_transaction
-  # Crea una venta NEGATIVA de TIENDA para anular una venta de StoreSale
-  # y regresa el stock de los productos vendidos.
   def reverse_transaction
     unless session[:store_adjustments_unlocked]
       redirect_to adjustments_sales_path, alert: "Debes ingresar el código de seguridad."
@@ -159,13 +144,11 @@ class SalesController < ApplicationController
       return
     end
 
-    # Evita revertir ventas que ya son negativas / ajustes
     if original.total_cents.to_i <= 0
       redirect_to adjustments_sales_path, alert: "Esta venta ya es un ajuste o negativa y no se puede revertir."
       return
     end
 
-    # Si no es superusuario, solo puede ajustar ventas propias
     if !superuser? && original.user_id != current_user.id
       redirect_to adjustments_sales_path, alert: "No puedes ajustar ventas de otros usuarios."
       return
@@ -174,7 +157,6 @@ class SalesController < ApplicationController
     reason = params[:reason].to_s.strip
 
     StoreSale.transaction do
-      # Atributos básicos de la venta negativa
       attrs = {
         user:           current_user,
         payment_method: original.payment_method,
@@ -182,35 +164,52 @@ class SalesController < ApplicationController
         occurred_at:    Time.current
       }
 
-      # Solo si algún día agregas columna metadata en store_sales
+      # Descripción clara de VENTA NEGATIVA en la cabecera
+      base_reason = reason.presence || "ajuste de tienda"
+      if StoreSale.column_names.include?("description")
+        attrs[:description] = "VENTA NEGATIVA (DEVOLUCIÓN) de venta ##{original.id} - #{base_reason}"
+      elsif StoreSale.column_names.include?("note")
+        attrs[:note] = "VENTA NEGATIVA (DEVOLUCIÓN) de venta ##{original.id} - #{base_reason}"
+      end
+
       if StoreSale.column_names.include?("metadata")
         attrs[:metadata] = { reversal_of_id: original.id, reason: reason }
       end
 
-      # 1) Crear la venta negativa SIN validaciones
       reversal = StoreSale.new(attrs)
       reversal.save!(validate: false)
 
-      # 2) Crear items espejo en negativo SIN validaciones + regreso de stock
       original.store_sale_items.find_each do |item|
+        # Armamos una descripción base del item original
+        base_desc =
+          if item.respond_to?(:description) && item.description.present?
+            item.description
+          elsif item.product
+            "#{item.product.name} x#{item.quantity}"
+          else
+            "Item #{item.id}"
+          end
+
         reversal_item = reversal.store_sale_items.build(
           product_id:        item.product_id,
           quantity:          item.quantity,
-          unit_price_cents: -item.unit_price_cents.to_i,
-          description:      (item.respond_to?(:description) ? item.description : nil)
+          unit_price_cents: -item.unit_price_cents.to_i
         )
 
-        # IMPORTANTE: guardamos el item SIN validar para permitir unit_price_cents negativo
+        # Descripción marcada como DEVOLUCIÓN
+        if reversal_item.respond_to?(:description)
+          reversal_item.description = "DEVOLUCIÓN - #{base_desc}"
+        end
+
         reversal_item.save!(validate: false)
 
-        # Regresar stock SOLO si hay producto asociado
         if (product = item.product)
           product.update!(stock: product.stock.to_i + item.quantity.to_i)
         end
       end
     end
 
-    redirect_to adjustments_sales_path, notice: "Venta negativa creada y stock regresado para la venta de tienda ##{original.id}."
+    redirect_to adjustments_sales_path, notice: "Venta negativa creada (DEVOLUCIÓN) y stock regresado para la venta de tienda ##{original.id}."
   rescue => e
     redirect_to adjustments_sales_path, alert: "No se pudo crear la venta negativa: #{e.message}"
   end
