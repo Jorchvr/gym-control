@@ -22,17 +22,12 @@ class ClientsController < ApplicationController
         end
       else # "name" o cualquier otro -> nombre
         query = "%#{@q.downcase}%"
-        # Si tienes extensión unaccent en PG, esto ayuda con acentos
-        begin
-          scope = scope.where("UNACCENT(LOWER(name)) LIKE UNACCENT(?)", query)
-        rescue
-          scope = scope.where("LOWER(name) LIKE ?", query)
-        end
+        # 🔥 Simplificamos: solo LOWER(name), así no depende de UNACCENT en la BD
+        scope = scope.where("LOWER(name) LIKE ?", query)
       end
     end
 
-    # ✅ Todos los clientes en una sola página con scroll en el navegador
-    # (ya NO usamos Kaminari aquí)
+    # Todos los clientes, el scroll lo hace la vista
     @clients = scope
   end
 
