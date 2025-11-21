@@ -51,15 +51,8 @@ class ReportsController < ApplicationController
         csv << [ "Items de la venta ##{s.id}" ]
         csv << [ "Producto", "Cantidad", "P.U. (MXN)", "Subtotal (MXN)" ]
         s.store_sale_items.each do |it|
-          item_name =
-            if it.respond_to?(:description) && it.description.present?
-              it.description
-            else
-              it.product&.name
-            end
-
           csv << [
-            item_name,
+            it.product&.name,
             it.quantity,
             (it.unit_price_cents.to_i / 100.0).round(2),
             ((it.unit_price_cents.to_i * it.quantity) / 100.0).round(2)
@@ -230,15 +223,8 @@ class ReportsController < ApplicationController
         ws.add_row [ "Items de la venta ##{s.id}" ], style: [ bold_style ]
         ws.add_row [ "Producto", "Cantidad", "P.U. (MXN)", "Subtotal (MXN)" ], style: [ header_style ]*4
         s.store_sale_items.each do |it|
-          item_name =
-            if it.respond_to?(:description) && it.description.present?
-              it.description
-            else
-              it.product&.name
-            end
-
           ws.add_row [
-            item_name,
+            it.product&.name,
             it.quantity,
             (it.unit_price_cents.to_i / 100.0),
             ((it.unit_price_cents.to_i * it.quantity) / 100.0)
@@ -372,15 +358,8 @@ class ReportsController < ApplicationController
               ws.add_row [ "Items de la venta ##{ss.id}" ], style: [ bold_style ]
               ws.add_row [ "Producto", "Cantidad", "P.U. (MXN)", "Subtotal (MXN)" ], style: [ header_style ]*4
               ss.store_sale_items.each do |it|
-                item_name =
-                  if it.respond_to?(:description) && it.description.present?
-                    it.description
-                  else
-                    it.product&.name
-                  end
-
                 ws.add_row [
-                  item_name,
+                  it.product&.name,
                   it.quantity,
                   (it.unit_price_cents.to_i / 100.0),
                   ((it.unit_price_cents.to_i * it.quantity) / 100.0)
@@ -438,7 +417,25 @@ class ReportsController < ApplicationController
       "transfer" => @sales.where(payment_method: :transfer).sum(:amount_cents).to_i + @store_sales.where(payment_method: :transfer).sum(:total_cents).to_i
     }
 
-    @stock_total_units = Product.sum(:stock).to_i
+    # ===== Productos vendidos en el rango (para la tabla de la vista) =====
+    items_all = @store_sales.flat_map { |ss| ss.store_sale_items.to_a }
+    grouped   = items_all.group_by(&:product_id)
+
+    @sold_by_product = grouped.map do |product_id, arr|
+      product        = arr.first&.product
+      sold_qty       = arr.sum { |it| it.quantity.to_i }
+      revenue_cents  = arr.sum { |it| it.unit_price_cents.to_i * it.quantity.to_i }
+
+      {
+        product:         product,
+        product_name:    (product&.name.presence || "Producto ##{product_id} (eliminado)"),
+        sold_qty:        sold_qty,
+        revenue_cents:   revenue_cents,
+        remaining_stock: product&.stock.to_i
+      }
+    end
+
+    @sold_by_product.sort_by! { |h| -h[:sold_qty].to_i }
   end
 
   # ==========================

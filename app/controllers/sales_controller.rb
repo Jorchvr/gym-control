@@ -88,12 +88,12 @@ class SalesController < ApplicationController
   end
 
   # =====================================================
-  # SECCIÓN PROTEGIDA: AJUSTES / VENTAS NEGATIVAS (SOLO TIENDA)
+  # SECCIÓN PROTEGIDA: AJUSTES / VENTAS NEGATIVAS (SOLO TIENDA ONLINE)
   # =====================================================
 
   # GET /sales/adjustments
   # 1) Si no está desbloqueado, muestra formulario de código.
-  # 2) Si ya está desbloqueado, muestra ventas de TIENDA del día del usuario + botón de venta negativa.
+  # 2) Si ya está desbloqueado, muestra SOLO ventas de TIENDA (productos) del día del usuario.
   def adjustments
     @date = Time.zone.today
     @from = @date.beginning_of_day
@@ -107,7 +107,18 @@ class SalesController < ApplicationController
     scope = StoreSale.where("COALESCE(store_sales.occurred_at, store_sales.created_at) BETWEEN ? AND ?", @from, @to)
     scope = scope.where(user_id: current_user.id) unless superuser?
 
-    @store_sales = scope.includes(:user, store_sale_items: :product)
+    # Incluimos items y productos
+    store_sales = scope.includes(:user, store_sale_items: :product).to_a
+
+    # Filtramos SOLO ventas de PRODUCTOS de tienda online:
+    # - Excluye ventas que sean solo "Servicio Griselle" (clases).
+    # - Excluye ventas sin items.
+    @store_sales = store_sales.select do |ss|
+      ss.store_sale_items.any? do |it|
+        prod = it.product
+        prod.present? && prod.name != "Servicio Griselle"
+      end
+    end
   end
 
   # POST /sales/unlock_adjustments
@@ -132,7 +143,8 @@ class SalesController < ApplicationController
   end
 
   # POST /sales/reverse_transaction
-  # Crea una venta NEGATIVA de TIENDA para anular una venta de StoreSale.
+  # Crea una venta NEGATIVA de TIENDA para anular una venta de StoreSale
+  # y regresa el stock de los productos vendidos.
   def reverse_transaction
     unless session[:store_adjustments_unlocked]
       redirect_to adjustments_sales_path, alert: "Debes ingresar el código de seguridad."
@@ -140,10 +152,16 @@ class SalesController < ApplicationController
     end
 
     ss_id    = params[:store_sale_id].to_i
-    original = StoreSale.includes(:store_sale_items).find_by(id: ss_id)
+    original = StoreSale.includes(store_sale_items: :product).find_by(id: ss_id)
 
     unless original
       redirect_to adjustments_sales_path, alert: "Venta de tienda no encontrada."
+      return
+    end
+
+    # Evita revertir ventas que ya son negativas / ajustes
+    if original.total_cents.to_i <= 0
+      redirect_to adjustments_sales_path, alert: "Esta venta ya es un ajuste o negativa y no se puede revertir."
       return
     end
 
@@ -164,25 +182,31 @@ class SalesController < ApplicationController
         occurred_at:    Time.current
       }
 
-      # Solo si ALGÚN DÍA agregas columna metadata en store_sales
+      # Solo si algún día agregas columna metadata en store_sales
       if StoreSale.column_names.include?("metadata")
         attrs[:metadata] = { reversal_of_id: original.id, reason: reason }
       end
 
       reversal = StoreSale.create!(attrs)
 
-      # Items espejo en negativo
+      # Items espejo en negativo + regreso de stock
       original.store_sale_items.find_each do |item|
+        # Crear item negativo (solo para productos; servicios igual pueden quedar pero no afectan stock)
         reversal.store_sale_items.create!(
           product_id:        item.product_id,
           quantity:          item.quantity,
           unit_price_cents: -item.unit_price_cents.to_i,
           description:      (item.respond_to?(:description) ? item.description : nil)
         )
+
+        # Regresar stock SOLO si hay producto asociado
+        if (product = item.product)
+          product.update!(stock: product.stock.to_i + item.quantity.to_i)
+        end
       end
     end
 
-    redirect_to adjustments_sales_path, notice: "Venta negativa creada para anular la venta de tienda ##{original.id}."
+    redirect_to adjustments_sales_path, notice: "Venta negativa creada y stock regresado para la venta de tienda ##{original.id}."
   rescue => e
     redirect_to adjustments_sales_path, alert: "No se pudo crear la venta negativa: #{e.message}"
   end
