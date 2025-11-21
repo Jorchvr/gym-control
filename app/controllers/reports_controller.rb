@@ -439,70 +439,65 @@ class ReportsController < ApplicationController
   end
 
   # ==========================
-  # CORTE (del día actual, por usuario actual)
+  # CORTE DEL DÍA (ticket para el usuario actual)
   # ==========================
   def closeout
-    date = Time.zone.today
-    from, to = date_range_for(date, :day)
+    @date = Time.zone.today
+    from, to = date_range_for(@date, :day)
 
+    # Solo operaciones del usuario actual
     sales = Sale.where(user_id: current_user.id)
                 .where("COALESCE(sales.occurred_at, sales.created_at) BETWEEN ? AND ?", from, to)
-                .includes(:client)
 
     store_sales = StoreSale.where(user_id: current_user.id)
                            .where("COALESCE(store_sales.occurred_at, store_sales.created_at) BETWEEN ? AND ?", from, to)
                            .includes(:user, store_sale_items: :product)
 
-    @ops_count   = sales.count + store_sales.count
-    @total_cents = sales.sum(:amount_cents).to_i + store_sales.sum(:total_cents).to_i
+    # ===== Resumen general =====
+    @operations_count       = sales.size + store_sales.size
+    @membership_total_cents = sales.sum(:amount_cents).to_i
+    @store_total_cents      = store_sales.sum(:total_cents).to_i
+    @negative_total_cents   = store_sales.select { |ss| ss.total_cents.to_i < 0 }.sum { |ss| ss.total_cents.to_i }
+    @money_total_cents      = @membership_total_cents + @store_total_cents
 
-    @by_method = {
-      "cash"     => sales.where(payment_method: :cash).sum(:amount_cents).to_i +
-                    store_sales.where(payment_method: :cash).sum(:total_cents).to_i,
-      "transfer" => sales.where(payment_method: :transfer).sum(:amount_cents).to_i +
-                    store_sales.where(payment_method: :transfer).sum(:total_cents).to_i
-    }
+    # ===== Métodos de pago =====
+    @money_by_method = Hash.new(0)
 
-    @user_name = current_user.name.presence || current_user.email
-    @date = date
-
-    @new_clients_today = Client.where(created_at: from..to).count
-    @checkins_today    = CheckIn.where("COALESCE(check_ins.occurred_at, check_ins.created_at) BETWEEN ? AND ?", from, to).count
-    @stock_total_units = Product.sum(:stock).to_i
-
-    # Movimientos del turno (para tabla)
-    @transactions = []
     sales.each do |s|
-      @transactions << {
-        at: (s.occurred_at || s.created_at),
-        label: "Membresía #{s.membership_type}",
-        amount_cents: s.amount_cents.to_i,
-        payment_method: s.payment_method
-      }
+      method = s.payment_method.to_s.presence || "cash"
+      @money_by_method[method] += s.amount_cents.to_i
     end
-    store_sales.each do |ss|
-      @transactions << {
-        at: (ss.occurred_at || ss.created_at),
-        label: "Tienda (##{ss.id})",
-        amount_cents: ss.total_cents.to_i,
-        payment_method: ss.payment_method
-      }
-    end
-    @transactions.sort_by! { |h| h[:at] }
 
-    # Detalle por producto vendido en el turno
-    items = store_sales.flat_map { |ss| ss.store_sale_items.to_a }
+    store_sales.each do |ss|
+      method = ss.payment_method.to_s.presence || "cash"
+      @money_by_method[method] += ss.total_cents.to_i
+    end
+
+    # Aseguramos claves básicas
+    @money_by_method["cash"]     ||= 0
+    @money_by_method["transfer"] ||= 0
+
+    # ===== Actividad de clientes (global del día) =====
+    @check_ins_count  = CheckIn.where("COALESCE(check_ins.occurred_at, check_ins.created_at) BETWEEN ? AND ?", from, to).count
+    @new_clients_count = Client.where(created_at: from..to).count
+
+    # Usuario que aparece en el ticket
+    @user_name = current_user.name.presence || current_user.email
+
+    # ===== Productos vendidos (para el usuario actual) =====
+    items   = store_sales.flat_map { |ss| ss.store_sale_items.to_a }
     grouped = items.group_by(&:product_id)
 
     @sold_by_product = grouped.map do |product_id, arr|
-      product = arr.first&.product
-      sold_qty = arr.sum { |it| it.quantity.to_i }
-      revenue_cents = arr.sum { |it| it.unit_price_cents.to_i * it.quantity.to_i }
+      product        = arr.first&.product
+      sold_qty       = arr.sum { |it| it.quantity.to_i }
+      revenue_cents  = arr.sum { |it| it.unit_price_cents.to_i * it.quantity.to_i }
+
       {
-        product: product,
-        product_name: (product&.name.presence || "Producto ##{product_id} (eliminado)"),
-        sold_qty: sold_qty,
-        revenue_cents: revenue_cents,
+        product:         product,
+        product_name:    (product&.name.presence || "Producto ##{product_id} (eliminado)"),
+        sold_qty:        sold_qty,
+        revenue_cents:   revenue_cents,
         remaining_stock: product&.stock.to_i
       }
     end
