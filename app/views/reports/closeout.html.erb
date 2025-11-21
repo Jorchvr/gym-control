@@ -3,13 +3,46 @@
 
 <% generated_at = Time.zone.now %>
 
+<%# ========= Cálculos extra para el ticket ========= %>
+<%
+  txs = (@transactions || [])
+
+  membership_total_cents =
+    txs.select { |t| t[:label].to_s.start_with?("Membresía") }
+       .sum { |t| t[:amount_cents].to_i }
+
+  store_total_cents =
+    txs.select { |t|
+      t[:label].to_s.start_with?("Tienda") && t[:amount_cents].to_i >= 0
+    }.sum { |t| t[:amount_cents].to_i }
+
+  adjustments_cents =
+    txs.select { |t| t[:amount_cents].to_i < 0 }
+       .sum { |t| t[:amount_cents].to_i }
+
+  # Métodos de pago calculados desde las transacciones
+  cash_cents     = 0
+  transfer_cents = 0
+
+  txs.each do |t|
+    case t[:payment_method].to_s
+    when "cash"
+      cash_cents += t[:amount_cents].to_i
+    when "transfer"
+      transfer_cents += t[:amount_cents].to_i
+    end
+  end
+%>
+
 <div class="ticket-page">
   <div class="ticket-wrapper">
     <div class="ticket-card">
-      <!-- ================= CABECERA ================= -->
+      <!-- ========== CABECERA ========== -->
       <header class="ticket-header">
         <div class="ticket-logo-wrap">
-          <%= image_tag "logo.png", alt: "Logo PowerGym", class: "ticket-logo" %>
+          <%= image_tag "logo.png",
+                        alt: "Logo PowerGym",
+                        class: "ticket-logo" %>
         </div>
         <div class="ticket-header-text">
           <h1 class="ticket-title">PowerGym</h1>
@@ -21,6 +54,7 @@
         </div>
       </header>
 
+      <!-- ========== USUARIO ========== -->
       <section class="ticket-section ticket-section--user">
         <div class="ticket-row">
           <div class="ticket-row-left">
@@ -33,34 +67,6 @@
       </section>
 
       <!-- ========== RESUMEN GENERAL ========== -->
-      <% txs = (@transactions || [])
-
-         membership_total_cents =
-           txs.select { |t| t[:label].to_s.start_with?("Membresía") }
-              .sum { |t| t[:amount_cents].to_i }
-
-         store_total_cents =
-           txs.select { |t|
-             t[:label].to_s.start_with?("Tienda") && t[:amount_cents].to_i >= 0
-           }.sum { |t| t[:amount_cents].to_i }
-
-         adjustments_cents =
-           txs.select { |t| t[:amount_cents].to_i < 0 }
-              .sum { |t| t[:amount_cents].to_i }
-
-         # 🔢 Recalcular métodos de pago SOLO con las transacciones
-         cash_cents = 0
-         transfer_cents = 0
-         txs.each do |t|
-           case t[:payment_method].to_s
-           when "cash"
-             cash_cents += t[:amount_cents].to_i
-           when "transfer"
-             transfer_cents += t[:amount_cents].to_i
-           end
-         end
-      %>
-
       <section class="ticket-section">
         <h3 class="ticket-section-title">RESUMEN GENERAL</h3>
 
@@ -72,21 +78,27 @@
         <div class="ticket-row">
           <div class="ticket-row-left">Ventas de membresía</div>
           <div class="ticket-row-right ticket-mono">
-            MXN <%= number_to_currency(membership_total_cents / 100.0, unit: "", precision: 2) %>
+            MXN <%= number_to_currency(membership_total_cents / 100.0,
+                                       unit: "",
+                                       precision: 2) %>
           </div>
         </div>
 
         <div class="ticket-row">
           <div class="ticket-row-left">Ventas de tienda</div>
           <div class="ticket-row-right ticket-mono">
-            MXN <%= number_to_currency(store_total_cents / 100.0, unit: "", precision: 2) %>
+            MXN <%= number_to_currency(store_total_cents / 100.0,
+                                       unit: "",
+                                       precision: 2) %>
           </div>
         </div>
 
         <div class="ticket-row ticket-row--negative">
           <div class="ticket-row-left">Ajustes / ventas negativas</div>
           <div class="ticket-row-right ticket-mono">
-            MXN <%= number_to_currency(adjustments_cents / 100.0, unit: "", precision: 2) %>
+            MXN <%= number_to_currency(adjustments_cents / 100.0,
+                                       unit: "",
+                                       precision: 2) %>
           </div>
         </div>
 
@@ -94,7 +106,9 @@
           <div class="ticket-row-left"><strong>Total del día</strong></div>
           <div class="ticket-row-right ticket-mono">
             <strong>
-              MXN <%= number_to_currency(@total_cents.to_i / 100.0, unit: "", precision: 2) %>
+              MXN <%= number_to_currency(@total_cents.to_i / 100.0,
+                                         unit: "",
+                                         precision: 2) %>
             </strong>
           </div>
         </div>
@@ -107,14 +121,18 @@
         <div class="ticket-row">
           <div class="ticket-row-left">Efectivo</div>
           <div class="ticket-row-right ticket-mono">
-            MXN <%= number_to_currency(cash_cents / 100.0, unit: "", precision: 2) %>
+            MXN <%= number_to_currency(cash_cents / 100.0,
+                                       unit: "",
+                                       precision: 2) %>
           </div>
         </div>
 
         <div class="ticket-row">
           <div class="ticket-row-left">Transferencia</div>
           <div class="ticket-row-right ticket-mono">
-            MXN <%= number_to_currency(transfer_cents / 100.0, unit: "", precision: 2) %>
+            MXN <%= number_to_currency(transfer_cents / 100.0,
+                                       unit: "",
+                                       precision: 2) %>
           </div>
         </div>
       </section>
@@ -156,7 +174,9 @@
             </div>
           <% end %>
         <% else %>
-          <p class="ticket-empty muted">No hay productos vendidos en este turno.</p>
+          <p class="ticket-empty muted">
+            No hay productos vendidos en este turno.
+          </p>
         <% end %>
       </section>
 
@@ -164,7 +184,8 @@
       <footer class="ticket-footer">
         <p class="ticket-thanks">¡Gracias por tu trabajo hoy! 💪</p>
         <p class="ticket-generated-at">
-          Corte generado el <%= @date.strftime("%Y-%m-%d") %> · <%= generated_at.strftime("%H:%M") %>
+          Corte generado el <%= @date.strftime("%Y-%m-%d") %> ·
+          <%= generated_at.strftime("%H:%M") %>
         </p>
 
         <div class="ticket-barcode">
