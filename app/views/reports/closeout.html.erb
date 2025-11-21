@@ -1,201 +1,144 @@
 <%= stylesheet_link_tag "main_panel", media: "all", "data-turbo-track": "reload" %>
-<%= stylesheet_link_tag "closeout",   media: "all", "data-turbo-track": "reload" %>
-
-<% generated_at = Time.zone.now %>
-
-<%# ========= Cálculos extra para el ticket ========= %>
-<%
-  txs = (@transactions || [])
-
-  membership_total_cents =
-    txs.select { |t| t[:label].to_s.start_with?("Membresía") }
-       .sum { |t| t[:amount_cents].to_i }
-
-  store_total_cents =
-    txs.select { |t|
-      t[:label].to_s.start_with?("Tienda") && t[:amount_cents].to_i >= 0
-    }.sum { |t| t[:amount_cents].to_i }
-
-  adjustments_cents =
-    txs.select { |t| t[:amount_cents].to_i < 0 }
-       .sum { |t| t[:amount_cents].to_i }
-
-  # Métodos de pago calculados desde las transacciones
-  cash_cents     = 0
-  transfer_cents = 0
-
-  txs.each do |t|
-    case t[:payment_method].to_s
-    when "cash"
-      cash_cents += t[:amount_cents].to_i
-    when "transfer"
-      transfer_cents += t[:amount_cents].to_i
-    end
-  end
-%>
 
 <div class="ticket-page">
   <div class="ticket-wrapper">
     <div class="ticket-card">
-      <!-- ========== CABECERA ========== -->
-      <header class="ticket-header">
+      <!-- HEADER -->
+      <div class="ticket-header">
         <div class="ticket-logo-wrap">
-          <%= image_tag "logo.png",
-                        alt: "Logo PowerGym",
-                        class: "ticket-logo" %>
+          <%= image_tag "logo.png", alt: "PowerGym", class: "ticket-logo" %>
         </div>
         <div class="ticket-header-text">
-          <h1 class="ticket-title">PowerGym</h1>
+          <p class="ticket-title">PowerGym</p>
           <p class="ticket-subtitle">CORTE DEL DÍA</p>
           <p class="ticket-date">
-            <%= @date.strftime("%Y-%m-%d") %> ·
-            <%= generated_at.strftime("%H:%M") %>
+            <%= @date&.strftime("%Y-%m-%d • %H:%M") %>
           </p>
         </div>
-      </header>
+      </div>
 
-      <!-- ========== USUARIO ========== -->
-      <section class="ticket-section ticket-section--user">
+      <!-- USUARIO -->
+      <div class="ticket-section ticket-section--user">
         <div class="ticket-row">
-          <div class="ticket-row-left">
-            <span class="ticket-label">Usuario</span>
-          </div>
-          <div class="ticket-row-right">
-            <span class="ticket-mono"><%= @user_name %></span>
-          </div>
+          <div class="ticket-row-left ticket-label">Usuario</div>
+          <div class="ticket-row-right ticket-text-strong"><%= @user_name %></div>
         </div>
-      </section>
+      </div>
 
-      <!-- ========== RESUMEN GENERAL ========== -->
-      <section class="ticket-section">
-        <h3 class="ticket-section-title">RESUMEN GENERAL</h3>
+      <!-- RESUMEN GENERAL -->
+      <div class="ticket-section">
+        <p class="ticket-section-title">RESUMEN GENERAL</p>
 
         <div class="ticket-row">
           <div class="ticket-row-left">Operaciones totales</div>
-          <div class="ticket-row-right ticket-mono"><%= @ops_count %></div>
+          <div class="ticket-row-right ticket-mono"><%= @ops_count.to_i %></div>
         </div>
 
         <div class="ticket-row">
           <div class="ticket-row-left">Ventas de membresía</div>
           <div class="ticket-row-right ticket-mono">
-            MXN <%= number_to_currency(membership_total_cents / 100.0,
-                                       unit: "",
-                                       precision: 2) %>
+            MXN <%= number_to_currency(@member_cents.to_i / 100.0, unit: "", precision: 2) %>
           </div>
         </div>
 
         <div class="ticket-row">
           <div class="ticket-row-left">Ventas de tienda</div>
           <div class="ticket-row-right ticket-mono">
-            MXN <%= number_to_currency(store_total_cents / 100.0,
-                                       unit: "",
-                                       precision: 2) %>
+            MXN <%= number_to_currency(@store_cents.to_i / 100.0, unit: "", precision: 2) %>
           </div>
         </div>
 
         <div class="ticket-row ticket-row--negative">
           <div class="ticket-row-left">Ajustes / ventas negativas</div>
           <div class="ticket-row-right ticket-mono">
-            MXN <%= number_to_currency(adjustments_cents / 100.0,
-                                       unit: "",
-                                       precision: 2) %>
+            MXN <%= number_to_currency(@adjustments_cents.to_i / 100.0, unit: "", precision: 2) %>
           </div>
         </div>
 
-        <div class="ticket-row ticket-row--total">
-          <div class="ticket-row-left"><strong>Total del día</strong></div>
+        <div class="ticket-row ticket-row--total ticket-text-strong">
+          <div class="ticket-row-left">Total del día</div>
           <div class="ticket-row-right ticket-mono">
-            <strong>
-              MXN <%= number_to_currency(@total_cents.to_i / 100.0,
-                                         unit: "",
-                                         precision: 2) %>
-            </strong>
+            MXN <%= number_to_currency(@total_cents.to_i / 100.0, unit: "", precision: 2) %>
           </div>
         </div>
-      </section>
+      </div>
 
-      <!-- ========== MÉTODOS DE PAGO ========== -->
-      <section class="ticket-section">
-        <h3 class="ticket-section-title">MÉTODOS DE PAGO</h3>
+      <!-- MÉTODOS DE PAGO -->
+      <div class="ticket-section">
+        <p class="ticket-section-title">MÉTODOS DE PAGO</p>
 
         <div class="ticket-row">
           <div class="ticket-row-left">Efectivo</div>
           <div class="ticket-row-right ticket-mono">
-            MXN <%= number_to_currency(cash_cents / 100.0,
-                                       unit: "",
-                                       precision: 2) %>
+            MXN <%= number_to_currency(@by_method["cash"].to_i / 100.0, unit: "", precision: 2) %>
           </div>
         </div>
 
         <div class="ticket-row">
           <div class="ticket-row-left">Transferencia</div>
           <div class="ticket-row-right ticket-mono">
-            MXN <%= number_to_currency(transfer_cents / 100.0,
-                                       unit: "",
-                                       precision: 2) %>
+            MXN <%= number_to_currency(@by_method["transfer"].to_i / 100.0, unit: "", precision: 2) %>
           </div>
         </div>
-      </section>
+      </div>
 
-      <!-- ========== ACTIVIDAD DE CLIENTES ========== -->
-      <section class="ticket-section">
-        <h3 class="ticket-section-title">ACTIVIDAD DE CLIENTES</h3>
+      <!-- ACTIVIDAD DE CLIENTES -->
+      <div class="ticket-section">
+        <p class="ticket-section-title">ACTIVIDAD DE CLIENTES</p>
 
         <div class="ticket-row">
           <div class="ticket-row-left">Entradas (check-ins)</div>
-          <div class="ticket-row-right ticket-mono"><%= @checkins_today %></div>
+          <div class="ticket-row-right ticket-mono"><%= @checkins_today.to_i %></div>
         </div>
 
         <div class="ticket-row">
           <div class="ticket-row-left">Nuevos clientes</div>
-          <div class="ticket-row-right ticket-mono"><%= @new_clients_today %></div>
+          <div class="ticket-row-right ticket-mono"><%= @new_clients_today.to_i %></div>
         </div>
-      </section>
+      </div>
 
-      <!-- ========== PRODUCTOS VENDIDOS ========== -->
-      <section class="ticket-section">
-        <h3 class="ticket-section-title">PRODUCTOS VENDIDOS</h3>
+      <!-- PRODUCTOS VENDIDOS (TODOS) -->
+      <div class="ticket-section">
+        <p class="ticket-section-title">PRODUCTOS VENDIDOS</p>
 
-        <% if @sold_by_product.present? %>
+        <% if @sold_by_product.blank? %>
+          <p class="ticket-empty">No hay productos vendidos en este turno.</p>
+        <% else %>
           <% @sold_by_product.each do |row| %>
             <div class="ticket-row">
               <div class="ticket-row-left">
-                <span class="ticket-text-strong">
-                  <%= row[:product_name] %> x<%= row[:sold_qty] %>
-                </span>
+                <%= row[:product_name] %>
+                <% if row[:sold_qty].to_i > 1 %>
+                  x<%= row[:sold_qty].to_i %>
+                <% end %>
               </div>
-              <div class="ticket-row-right">
-                <span class="ticket-mono">
-                  MXN <%= number_to_currency(row[:revenue_cents].to_i / 100.0,
-                                             unit: "",
-                                             precision: 2) %>
-                </span>
+              <div class="ticket-row-right ticket-mono">
+                MXN <%= number_to_currency(row[:revenue_cents].to_i / 100.0, unit: "", precision: 2) %>
               </div>
             </div>
           <% end %>
-        <% else %>
-          <p class="ticket-empty muted">
-            No hay productos vendidos en este turno.
-          </p>
         <% end %>
-      </section>
+      </div>
 
-      <!-- ========== FOOTER ========== -->
-      <footer class="ticket-footer">
+      <!-- FOOTER -->
+      <div class="ticket-footer">
         <p class="ticket-thanks">¡Gracias por tu trabajo hoy! 💪</p>
         <p class="ticket-generated-at">
-          Corte generado el <%= @date.strftime("%Y-%m-%d") %> ·
-          <%= generated_at.strftime("%H:%M") %>
+          Corte generado el <%= Time.zone.now.strftime("%Y-%m-%d · %H:%M") %>
         </p>
 
         <div class="ticket-barcode">
           <div class="ticket-barcode-lines">
-            <% 26.times do |i| %>
-              <span class="ticket-bar-line <%= 'ticket-bar-line--thin' if i.even? %>"></span>
+            <% 22.times do |i| %>
+              <% if i.even? %>
+                <span class="ticket-bar-line"></span>
+              <% else %>
+                <span class="ticket-bar-line ticket-bar-line--thin"></span>
+              <% end %>
             <% end %>
           </div>
         </div>
-      </footer>
+      </div>
     </div>
   </div>
 </div>

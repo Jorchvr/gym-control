@@ -441,50 +441,68 @@ class ReportsController < ApplicationController
   # ==========================
   # CORTE DEL DÍA (ticket para el usuario actual)
   # ==========================
+  # ==========================
+  # CORTE (del día actual, por usuario actual)
+  # ==========================
   def closeout
-    @date = Time.zone.today
-    from, to = date_range_for(@date, :day)
+    date = Time.zone.today
+    from, to = date_range_for(date, :day)
 
-    # Solo operaciones del usuario actual
     sales = Sale.where(user_id: current_user.id)
                 .where("COALESCE(sales.occurred_at, sales.created_at) BETWEEN ? AND ?", from, to)
+                .includes(:client)
 
     store_sales = StoreSale.where(user_id: current_user.id)
                            .where("COALESCE(store_sales.occurred_at, store_sales.created_at) BETWEEN ? AND ?", from, to)
                            .includes(:user, store_sale_items: :product)
 
-    # ===== Resumen general =====
-    @operations_count       = sales.size + store_sales.size
-    @membership_total_cents = sales.sum(:amount_cents).to_i
-    @store_total_cents      = store_sales.sum(:total_cents).to_i
-    @negative_total_cents   = store_sales.select { |ss| ss.total_cents.to_i < 0 }.sum { |ss| ss.total_cents.to_i }
-    @money_total_cents      = @membership_total_cents + @store_total_cents
+    # ==== Totales por tipo + ajustes ====
+    pos_member_cents = sales.where("amount_cents >= 0").sum(:amount_cents).to_i
+    pos_store_cents  = store_sales.where("total_cents >= 0").sum(:total_cents).to_i
 
-    # ===== Métodos de pago =====
-    @money_by_method = Hash.new(0)
+    neg_member_cents = sales.where("amount_cents < 0").sum(:amount_cents).to_i
+    neg_store_cents  = store_sales.where("total_cents < 0").sum(:total_cents).to_i
 
+    @member_cents      = pos_member_cents
+    @store_cents       = pos_store_cents
+    @adjustments_cents = neg_member_cents + neg_store_cents
+    @ops_count         = sales.count + store_sales.count
+    @total_cents       = @member_cents + @store_cents + @adjustments_cents
+
+    # Métodos de pago
+    @by_method = {
+      "cash"     => sales.where(payment_method: :cash).sum(:amount_cents).to_i +
+                    store_sales.where(payment_method: :cash).sum(:total_cents).to_i,
+      "transfer" => sales.where(payment_method: :transfer).sum(:amount_cents).to_i +
+                    store_sales.where(payment_method: :transfer).sum(:total_cents).to_i
+    }
+
+    @user_name         = current_user.name.presence || current_user.email
+    @date              = date
+    @new_clients_today = Client.where(created_at: from..to).count
+    @checkins_today    = CheckIn.where("COALESCE(check_ins.occurred_at, check_ins.created_at) BETWEEN ? AND ?", from, to).count
+
+    # Movimientos del turno (para la tabla interna del ticket)
+    @transactions = []
     sales.each do |s|
-      method = s.payment_method.to_s.presence || "cash"
-      @money_by_method[method] += s.amount_cents.to_i
+      @transactions << {
+        at:             (s.occurred_at || s.created_at),
+        label:          "Membresía #{s.membership_type}",
+        amount_cents:   s.amount_cents.to_i,
+        payment_method: s.payment_method
+      }
     end
-
     store_sales.each do |ss|
-      method = ss.payment_method.to_s.presence || "cash"
-      @money_by_method[method] += ss.total_cents.to_i
+      @transactions << {
+        at:             (ss.occurred_at || ss.created_at),
+        label:          "Tienda (##{ss.id})",
+        amount_cents:   ss.total_cents.to_i,
+        payment_method: ss.payment_method
+      }
     end
+    @transactions.sort_by! { |h| h[:at] }
 
-    # Aseguramos claves básicas
-    @money_by_method["cash"]     ||= 0
-    @money_by_method["transfer"] ||= 0
-
-    # ===== Actividad de clientes (global del día) =====
-    @check_ins_count  = CheckIn.where("COALESCE(check_ins.occurred_at, check_ins.created_at) BETWEEN ? AND ?", from, to).count
-    @new_clients_count = Client.where(created_at: from..to).count
-
-    # Usuario que aparece en el ticket
-    @user_name = current_user.name.presence || current_user.email
-
-    # ===== Productos vendidos (para el usuario actual) =====
+    # Detalle por producto vendido en el turno (TODOS, sin "ver más")
     items   = store_sales.flat_map { |ss| ss.store_sale_items.to_a }
     grouped = items.group_by(&:product_id)
 
@@ -504,6 +522,7 @@ class ReportsController < ApplicationController
 
     @sold_by_product.sort_by! { |h| -h[:sold_qty].to_i }
   end
+
 
   private
 
