@@ -107,7 +107,9 @@ class SalesController < ApplicationController
     scope = Sale.where("COALESCE(sales.occurred_at, sales.created_at) BETWEEN ? AND ?", @from, @to)
     scope = scope.where(user_id: current_user.id) unless superuser?
 
-    @sales = scope.includes(:user, :client).order("COALESCE(occurred_at, created_at) ASC")
+    @sales = scope
+               .includes(:user, :client)
+               .order(Arel.sql("COALESCE(sales.occurred_at, sales.created_at) ASC"))
   end
 
   # POST /sales/unlock_adjustments
