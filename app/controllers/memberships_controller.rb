@@ -25,7 +25,9 @@ class MembershipsController < ApplicationController
   # POST /memberships/checkout
   # plan = day|week|month_late|month_on_time|custom
   # payment_method = cash|transfer
-  # custom_price_mxn, custom_description (si plan=custom)
+  # custom_price_mxn, custom_description (si plan=custom o use_custom_price=1)
+  #
+  # 🔹 Precio personalizado ahora cuenta como 1 mes de membresía.
   def checkout
     client = Client.find(params[:client_id])
 
@@ -33,38 +35,45 @@ class MembershipsController < ApplicationController
     pm   = params[:payment_method].to_s
     payment_method = %w[cash transfer].include?(pm) ? pm : "cash"
 
-    # ======= PERSONALIZADO =======
-    if plan == "custom" || params[:use_custom_price].to_s == "1"
+    # ¿Se está usando precio personalizado?
+    custom_flag = (plan == "custom" || params[:use_custom_price].to_s == "1")
+
+    amount_cents  = nil
+    plan_for_enum = nil     # enum day|week|month
+    month_variant = nil     # late | on_time | custom
+
+    # ======= PERSONALIZADO (tratar como 1 MES) =======
+    if custom_flag
       amount_cents = parse_money_to_cents(params[:custom_price_mxn])
       raise ArgumentError, "Monto personalizado inválido." if amount_cents.nil? || amount_cents <= 0
 
-      Sale.create!(
-        client:          client,
-        user:            current_user,
-        membership_type: nil,  # venta libre (no mueve fechas)
-        payment_method:  payment_method,
-        amount_cents:    amount_cents,
-        occurred_at:     Time.current,
-        metadata:        { custom: true, description: params[:custom_description].to_s.presence }
-      )
-
-      return redirect_to memberships_path(q: client.id),
-             notice: "Pago personalizado guardado por $#{format('%.2f', amount_cents / 100.0)}."
+      plan_for_enum = "month"     # 🔥 cuenta como un mes
+      month_variant = "custom"    # lo marcamos como variante personalizada
+    else
+      # ======= PLANES FIJOS (día, semana, mes atraso/puntual) =======
+      amount_cents, plan_for_enum, month_variant =
+        case plan
+        when "day"           then [ PRICES[:day],           "day",   nil ]
+        when "week"          then [ PRICES[:week],          "week",  nil ]
+        when "month_late"    then [ PRICES[:month_late],    "month", "late" ]
+        when "month_on_time" then [ PRICES[:month_on_time], "month", "on_time" ]
+        else
+          return redirect_to memberships_path(q: client.id), alert: "Plan inválido."
+        end
     end
 
-    # ======= PLANES FIJOS (día, semana, mes atraso/puntual) =======
-    amount_cents, plan_for_enum, month_variant =
-      case plan
-      when "day"           then [ PRICES[:day],           "day",   nil ]
-      when "week"          then [ PRICES[:week],          "week",  nil ]
-      when "month_late"    then [ PRICES[:month_late],    "month", "late" ]
-      when "month_on_time" then [ PRICES[:month_on_time], "month", "on_time" ]
-      else
-        return redirect_to memberships_path(q: client.id), alert: "Plan inválido."
+    new_next = nil
+
+    ApplicationRecord.transaction do
+      # Metadata extra
+      metadata = {}
+      metadata[:month_variant] = month_variant if month_variant.present?
+      if custom_flag
+        metadata[:custom]       = true
+        metadata[:description]  = params[:custom_description].to_s.presence
       end
 
-    new_next = nil
-    ApplicationRecord.transaction do
+      # Registro de la venta
       Sale.create!(
         client:          client,
         user:            current_user,
@@ -72,9 +81,10 @@ class MembershipsController < ApplicationController
         payment_method:  payment_method,  # enum cash|transfer
         amount_cents:    amount_cents,
         occurred_at:     Time.current,
-        metadata:        (month_variant ? { month_variant: month_variant } : {})
+        metadata:        metadata
       )
 
+      # Base: el mayor entre hoy y la fecha actual de próximo pago
       base_date = [ Date.current, client.next_payment_on ].compact.max
       new_next  = case plan_for_enum
       when "day"   then base_date + 1.day
@@ -88,11 +98,17 @@ class MembershipsController < ApplicationController
       )
     end
 
-    label = case plan
-    when "month_late"     then "Mes (atraso)"
-    when "month_on_time"  then "Mensualidad (puntual)"
-    else plan.humanize
-    end
+    label =
+      if custom_flag
+        "Mensualidad personalizada"
+      else
+        case plan
+        when "month_late"    then "Mes (atraso)"
+        when "month_on_time" then "Mensualidad (puntual)"
+        else
+          plan.humanize
+        end
+      end
 
     redirect_to memberships_path(q: client.id),
       notice: "Pago registrado (#{label}) por $#{format('%.2f', amount_cents / 100.0)}. Próximo pago: #{new_next}."
