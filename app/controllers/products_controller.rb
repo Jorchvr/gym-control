@@ -62,23 +62,12 @@ class ProductsController < ApplicationController
 
   # DELETE /products/:id
   def destroy
-    if @product.destroy
-      redirect_to products_path, notice: "Producto eliminado correctamente."
-    else
-      # Cuando dependent: :restrict_with_error bloquea
-      if @product.errors.details[:base].any? { |e| e[:error] == :restrict_dependent_destroy }
-        msg = "No puedes eliminar este producto porque tiene movimientos de inventario o ventas registradas."
-      else
-        msg = "No se pudo eliminar el producto: #{@product.errors.full_messages.to_sentence}"
-      end
-
-      redirect_to products_path, alert: msg
-    end
-
-  rescue ActiveRecord::InvalidForeignKey
-    # Respaldo por si el error viene directo de la base
-    redirect_to products_path,
-                alert: "No puedes eliminar este producto porque tiene movimientos de inventario asociados."
+    @product.destroy
+    redirect_to products_path, notice: "Producto eliminado."
+  rescue ActiveRecord::InvalidForeignKey => e
+    # Solo por si alguna FK rara se queda por ahí
+    Rails.logger.error("[Products#destroy] FK error: #{e.class} #{e.message}")
+    redirect_to products_path, alert: "No se pudo eliminar el producto por una restricción de base de datos."
   end
 
   private

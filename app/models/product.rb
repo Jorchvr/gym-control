@@ -1,8 +1,9 @@
 class Product < ApplicationRecord
   # ===== Asociaciones =====
-  # No dejar borrar si tiene eventos de inventario o ventas de tienda
-  has_many :inventory_events, dependent: :restrict_with_error
-  has_many :store_sale_items, dependent: :restrict_with_error
+  # OJO: al borrar un producto se borran también todos sus eventos de inventario
+  # y sus items de venta de tienda.
+  has_many :inventory_events, dependent: :delete_all
+  has_many :store_sale_items, dependent: :delete_all
 
   # ===== Campos virtuales en MXN (pesos) =====
   attr_accessor :price_mxn, :cost_mxn
