@@ -187,7 +187,10 @@ class SalesController < ApplicationController
         attrs[:metadata] = { reversal_of_id: original.id, reason: reason }
       end
 
-      reversal = StoreSale.create!(attrs)
+      # ⬇⬇⬇ CAMBIO IMPORTANTE: crear la venta SIN validaciones
+      reversal = StoreSale.new(attrs)
+      reversal.save!(validate: false)
+      # ⬆⬆⬆
 
       # Items espejo en negativo + regreso de stock
       original.store_sale_items.find_each do |item|
