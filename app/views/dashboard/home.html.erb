@@ -11,9 +11,6 @@
     <p class="user-greeting"><strong>Usuario:</strong> <%= current_user.name %></p>
 
     <div class="top-actions" style="display:flex; gap:.75rem; flex-wrap:wrap;">
-      <!-- 🔹 Accesos rápidos visibles para todos -->
-      
-
       <%= button_to "Cerrar Sesión",
                     destroy_user_session_path,
                     method: :delete,
@@ -149,12 +146,11 @@
       <% if is_superuser? %>
         <%= link_to "Ventas (registro)", sales_path, class: "btn" %>
         <%= link_to "Descargar Excel del día", reports_daily_export_excel_path, class: "btn" %>
-
       <% end %>
     </div>
   </div>
 
-   <!-- ===================== Panel derecho: Tienda ===================== -->
+  <!-- ===================== Panel derecho: Tienda ===================== -->
   <div class="panel shop-panel">
     <div class="header-row">
       <h2 class="title">Tienda Online</h2>
@@ -198,7 +194,6 @@
               <% end %>
             <% end %>
 
-            <% # Si hay menos de 10 productos, rellenamos con cuadros vacíos para mantener 5x2 %>
             <% if products_for_grid.size < squares %>
               <% (squares - products_for_grid.size).times do %>
                 <div class="product-square-empty"></div>
@@ -208,7 +203,7 @@
         </div>
       </div>
 
-      <!-- 🔽 Mitad inferior: carrito, ocupando toda la mitad -->
+      <!-- 🔽 Mitad inferior: carrito -->
       <div class="shop-bottom">
         <div class="mini-cart mini-cart--short">
           <div class="header-row">
@@ -274,7 +269,6 @@
             <% end %>
           </div>
 
-          <!-- Pago + Total + Checkout -->
           <%= form_with url: checkout_cart_path, method: :post, local: true do |f| %>
             <div class="mb-4">
               <label class="label">Método de pago:</label>

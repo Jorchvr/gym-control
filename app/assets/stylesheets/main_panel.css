@@ -870,8 +870,6 @@ body[class*="fixed"], body.fixed {
   top: 0;
   z-index: 50;
 }
-/* ======== Panel derecho: split mitad arriba / mitad abajo ======== */
-
 .shop-panel .shop-body-split {
   display: flex;
   flex-direction: column;
@@ -881,11 +879,11 @@ body[class*="fixed"], body.fixed {
 
 .shop-panel .shop-top,
 .shop-panel .shop-bottom {
-  flex: 1;          /* mismas mitades */
-  min-height: 0;    /* permite scroll interno si hace falta */
+  flex: 1;
+  min-height: 0;
 }
 
-/* Que el carrito llene su mitad */
+/* Carrito llena la mitad de abajo */
 .shop-panel .shop-bottom .mini-cart {
   height: 100%;
   display: flex;
@@ -898,8 +896,7 @@ body[class*="fixed"], body.fixed {
   padding-right: 0.25rem;
 }
 
-/* ======== Grid 5x2 de cuadrados de producto ======== */
-
+/* Grid 5x2 */
 .product-grid-card {
   height: 100%;
   display: flex;
@@ -910,11 +907,10 @@ body[class*="fixed"], body.fixed {
   flex: 1;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  grid-template-rows: repeat(2, 1fr); /* 2 filas */
+  grid-template-rows: repeat(2, 1fr);
   gap: 0.75rem;
 }
 
-/* Botón-cuadro */
 .product-square-btn,
 .product-square-empty {
   border-radius: 0.9rem;
@@ -963,7 +959,6 @@ body[class*="fixed"], body.fixed {
   color: rgba(148, 163, 184, 0.95);
 }
 
-/* Cuadros vacíos solo para completar la grilla 5x2 */
 .product-square-empty {
   opacity: 0.15;
   pointer-events: none;
