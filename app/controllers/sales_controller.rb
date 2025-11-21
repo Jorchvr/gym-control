@@ -187,20 +187,21 @@ class SalesController < ApplicationController
         attrs[:metadata] = { reversal_of_id: original.id, reason: reason }
       end
 
-      # ⬇⬇⬇ CAMBIO IMPORTANTE: crear la venta SIN validaciones
+      # 1) Crear la venta negativa SIN validaciones
       reversal = StoreSale.new(attrs)
       reversal.save!(validate: false)
-      # ⬆⬆⬆
 
-      # Items espejo en negativo + regreso de stock
+      # 2) Crear items espejo en negativo SIN validaciones + regreso de stock
       original.store_sale_items.find_each do |item|
-        # Crear item negativo (solo para productos; servicios igual pueden quedar pero no afectan stock)
-        reversal.store_sale_items.create!(
+        reversal_item = reversal.store_sale_items.build(
           product_id:        item.product_id,
           quantity:          item.quantity,
           unit_price_cents: -item.unit_price_cents.to_i,
           description:      (item.respond_to?(:description) ? item.description : nil)
         )
+
+        # IMPORTANTE: guardamos el item SIN validar para permitir unit_price_cents negativo
+        reversal_item.save!(validate: false)
 
         # Regresar stock SOLO si hay producto asociado
         if (product = item.product)
