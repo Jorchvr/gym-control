@@ -6,7 +6,7 @@ class ReportsController < ApplicationController
   before_action :authenticate_user!
   before_action :require_two_factor!, if: -> { respond_to?(:require_two_factor!) }
   # Solo superusuario puede ver historial y exportar (CSV/XLSX); el corte lo ve cualquier usuario autenticado
-  before_action :require_superuser!, only: [:daily_export, :history, :daily_export_excel]
+  before_action :require_superuser!, only: [ :daily_export, :history, :daily_export_excel ]
 
   # ==========================
   # DESCARGA CSV DEL DÍA (solo superusuario)
@@ -51,8 +51,15 @@ class ReportsController < ApplicationController
         csv << [ "Items de la venta ##{s.id}" ]
         csv << [ "Producto", "Cantidad", "P.U. (MXN)", "Subtotal (MXN)" ]
         s.store_sale_items.each do |it|
+          item_name =
+            if it.respond_to?(:description) && it.description.present?
+              it.description
+            else
+              it.product&.name
+            end
+
           csv << [
-            it.product&.name,
+            item_name,
             it.quantity,
             (it.unit_price_cents.to_i / 100.0).round(2),
             ((it.unit_price_cents.to_i * it.quantity) / 100.0).round(2)
@@ -200,43 +207,50 @@ class ReportsController < ApplicationController
 
     # ---------- Hoja 1: Historial del día ----------
     wb.add_worksheet(name: "Historial (día actual)") do |ws|
-      ws.add_row ["Reporte Diario (#{day})"], style: [bold_style]
-      ws.add_row ["Total operaciones (tienda + membresías)", (sales.size + store_sales.size)]
-      ws.add_row ["Total vendido (MXN)", (total_cents / 100.0)], style: [nil, currency_fmt]
-      ws.add_row ["Efectivo (MXN)", (day_cash_cents / 100.0)], style: [nil, currency_fmt]
-      ws.add_row ["Transferencia (MXN)", (day_transfer_cents / 100.0)], style: [nil, currency_fmt]
+      ws.add_row [ "Reporte Diario (#{day})" ], style: [ bold_style ]
+      ws.add_row [ "Total operaciones (tienda + membresías)", (sales.size + store_sales.size) ]
+      ws.add_row [ "Total vendido (MXN)", (total_cents / 100.0) ], style: [ nil, currency_fmt ]
+      ws.add_row [ "Efectivo (MXN)", (day_cash_cents / 100.0) ], style: [ nil, currency_fmt ]
+      ws.add_row [ "Transferencia (MXN)", (day_transfer_cents / 100.0) ], style: [ nil, currency_fmt ]
       ws.add_row []
 
       # Ventas Tienda (StoreSale)
-      ws.add_row ["Ventas de Tienda (StoreSale)"], style: [bold_style]
-      ws.add_row ["ID", "Fecha/Hora", "Usuario", "Método pago", "Total (MXN)"], style: [header_style]*5
+      ws.add_row [ "Ventas de Tienda (StoreSale)" ], style: [ bold_style ]
+      ws.add_row [ "ID", "Fecha/Hora", "Usuario", "Método pago", "Total (MXN)" ], style: [ header_style ]*5
       store_sales.each do |s|
         ts = (s.occurred_at || s.created_at)&.in_time_zone&.strftime("%Y-%m-%d %H:%M")
-        ws.add_row [s.id, ts, (s.user&.name || s.user&.email), s.payment_method, (s.total_cents.to_i/100.0)],
-                   style: [nil, nil, nil, nil, currency_fmt]
+        ws.add_row [ s.id, ts, (s.user&.name || s.user&.email), s.payment_method, (s.total_cents.to_i/100.0) ],
+                   style: [ nil, nil, nil, nil, currency_fmt ]
       end
       ws.add_row []
 
       # Items por venta (tienda)
       store_sales.each do |s|
         next if s.store_sale_items.blank?
-        ws.add_row ["Items de la venta ##{s.id}"], style: [bold_style]
-        ws.add_row ["Producto", "Cantidad", "P.U. (MXN)", "Subtotal (MXN)"], style: [header_style]*4
+        ws.add_row [ "Items de la venta ##{s.id}" ], style: [ bold_style ]
+        ws.add_row [ "Producto", "Cantidad", "P.U. (MXN)", "Subtotal (MXN)" ], style: [ header_style ]*4
         s.store_sale_items.each do |it|
+          item_name =
+            if it.respond_to?(:description) && it.description.present?
+              it.description
+            else
+              it.product&.name
+            end
+
           ws.add_row [
-            it.product&.name,
+            item_name,
             it.quantity,
             (it.unit_price_cents.to_i / 100.0),
             ((it.unit_price_cents.to_i * it.quantity) / 100.0)
-          ], style: [nil, nil, currency_fmt, currency_fmt]
+          ], style: [ nil, nil, currency_fmt, currency_fmt ]
         end
         ws.add_row []
       end
 
       # Ventas de Membresías
       if sales.present?
-        ws.add_row ["Ventas de Membresías (Sale)"], style: [bold_style]
-        ws.add_row ["ID", "Fecha/Hora", "Usuario", "Cliente", "Membresía", "Monto (MXN)", "Método pago"], style: [header_style]*7
+        ws.add_row [ "Ventas de Membresías (Sale)" ], style: [ bold_style ]
+        ws.add_row [ "ID", "Fecha/Hora", "Usuario", "Cliente", "Membresía", "Monto (MXN)", "Método pago" ], style: [ header_style ]*7
         sales.each do |s|
           ts = (s.occurred_at || s.created_at)&.in_time_zone&.strftime("%Y-%m-%d %H:%M")
           client_name = s.client&.name
@@ -245,38 +259,38 @@ class ReportsController < ApplicationController
             (s.membership_type || "-"),
             (s.amount_cents.to_i/100.0),
             (s.payment_method || "-")
-          ], style: [nil, nil, nil, nil, nil, currency_fmt, nil]
+          ], style: [ nil, nil, nil, nil, nil, currency_fmt, nil ]
         end
         ws.add_row []
       end
 
       # Check-ins
       if check_ins.present?
-        ws.add_row ["Entradas del día (CheckIn)"], style: [bold_style]
-        ws.add_row ["Hora", "Cliente", "Usuario"], style: [header_style]*3
+        ws.add_row [ "Entradas del día (CheckIn)" ], style: [ bold_style ]
+        ws.add_row [ "Hora", "Cliente", "Usuario" ], style: [ header_style ]*3
         check_ins.each do |ci|
           hh = (ci.occurred_at || ci.created_at)&.in_time_zone&.strftime("%H:%M")
-          ws.add_row [hh, ci.client&.name, (ci.user&.name || ci.user&.email)]
+          ws.add_row [ hh, ci.client&.name, (ci.user&.name || ci.user&.email) ]
         end
         ws.add_row []
       end
 
       # Nuevos clientes
       if new_clients.present?
-        ws.add_row ["Nuevos clientes"], style: [bold_style]
-        ws.add_row ["Hora", "Cliente", "Usuario"], style: [header_style]*3
+        ws.add_row [ "Nuevos clientes" ], style: [ bold_style ]
+        ws.add_row [ "Hora", "Cliente", "Usuario" ], style: [ header_style ]*3
         new_clients.each do |c|
           hh = c.created_at&.in_time_zone&.strftime("%H:%M")
-          ws.add_row [hh, c.name, (c.user&.name || c.user&.email)]
+          ws.add_row [ hh, c.name, (c.user&.name || c.user&.email) ]
         end
         ws.add_row []
       end
 
       # Productos vendidos (día)
-      ws.add_row ["Productos vendidos (día)"], style: [bold_style]
-      ws.add_row ["Producto", "Cantidad vendida", "Ingreso (MXN)", "Stock restante"], style: [header_style]*4
+      ws.add_row [ "Productos vendidos (día)" ], style: [ bold_style ]
+      ws.add_row [ "Producto", "Cantidad vendida", "Ingreso (MXN)", "Stock restante" ], style: [ header_style ]*4
       if sold_by_product.blank?
-        ws.add_row ["Sin ventas de tienda", nil, nil, nil]
+        ws.add_row [ "Sin ventas de tienda", nil, nil, nil ]
       else
         sold_by_product.each do |r|
           ws.add_row [
@@ -284,7 +298,7 @@ class ReportsController < ApplicationController
             r[:qty],
             (r[:revenue_cents].to_i / 100.0),
             r[:remaining_stock].to_i
-          ], style: [nil, nil, currency_fmt, nil]
+          ], style: [ nil, nil, currency_fmt, nil ]
         end
       end
 
@@ -293,9 +307,9 @@ class ReportsController < ApplicationController
 
     # ---------- Hoja 2: Cortes por usuario ----------
     wb.add_worksheet(name: "Cortes por usuario") do |ws|
-      ws.add_row ["Cortes del día #{day}"], style: [bold_style]
+      ws.add_row [ "Cortes del día #{day}" ], style: [ bold_style ]
       ws.add_row []
-      ws.add_row ["Usuario", "Operaciones", "Total (MXN)", "Efectivo (MXN)", "Transferencia (MXN)", "Membresías (MXN)", "Tienda (MXN)", "Check-ins", "Nuevos clientes"], style: [header_style]*9
+      ws.add_row [ "Usuario", "Operaciones", "Total (MXN)", "Efectivo (MXN)", "Transferencia (MXN)", "Membresías (MXN)", "Tienda (MXN)", "Check-ins", "Nuevos clientes" ], style: [ header_style ]*9
 
       # Resumen por usuario
       user_stats.values.sort_by { |h| -(h[:total] || 0) }.each do |st|
@@ -310,11 +324,11 @@ class ReportsController < ApplicationController
           (st[:store].to_i/100.0),
           st[:checkins].to_i,
           st[:new_clients].to_i
-        ], style: [nil, nil, currency_fmt, currency_fmt, currency_fmt, currency_fmt, currency_fmt, nil, nil]
+        ], style: [ nil, nil, currency_fmt, currency_fmt, currency_fmt, currency_fmt, currency_fmt, nil, nil ]
       end
 
       ws.add_row []
-      ws.add_row ["Detalle por usuario"], style: [bold_style]
+      ws.add_row [ "Detalle por usuario" ], style: [ bold_style ]
       ws.add_row []
 
       # Detalle por usuario
@@ -323,12 +337,12 @@ class ReportsController < ApplicationController
         u  = st[:user]
         uname = (u&.name || u&.email || "Usuario ##{u&.id || '-'}")
 
-        ws.add_row ["Usuario: #{uname}"], style: [bold_style]
-        ws.add_row ["Ventas de Membresías"], style: [bold_style]
-        ws.add_row ["ID", "Fecha/Hora", "Cliente", "Membresía", "Monto (MXN)", "Método pago"], style: [header_style]*6
+        ws.add_row [ "Usuario: #{uname}" ], style: [ bold_style ]
+        ws.add_row [ "Ventas de Membresías" ], style: [ bold_style ]
+        ws.add_row [ "ID", "Fecha/Hora", "Cliente", "Membresía", "Monto (MXN)", "Método pago" ], style: [ header_style ]*6
 
         if user_sales[uid].blank?
-          ws.add_row ["Sin ventas de membresías", nil, nil, nil, nil, nil]
+          ws.add_row [ "Sin ventas de membresías", nil, nil, nil, nil, nil ]
         else
           user_sales[uid].each do |s|
             ts = (s.occurred_at || s.created_at)&.in_time_zone&.strftime("%Y-%m-%d %H:%M")
@@ -337,33 +351,40 @@ class ReportsController < ApplicationController
               (s.membership_type || "-"),
               (s.amount_cents.to_i/100.0),
               (s.payment_method || "-")
-            ], style: [nil, nil, nil, nil, currency_fmt, nil]
+            ], style: [ nil, nil, nil, nil, currency_fmt, nil ]
           end
         end
 
         ws.add_row []
-        ws.add_row ["Ventas de Tienda"], style: [bold_style]
-        ws.add_row ["ID", "Fecha/Hora", "Método pago", "Total (MXN)"], style: [header_style]*4
+        ws.add_row [ "Ventas de Tienda" ], style: [ bold_style ]
+        ws.add_row [ "ID", "Fecha/Hora", "Método pago", "Total (MXN)" ], style: [ header_style ]*4
 
         if user_ss[uid].blank?
-          ws.add_row ["Sin ventas de tienda", nil, nil, nil]
+          ws.add_row [ "Sin ventas de tienda", nil, nil, nil ]
         else
           user_ss[uid].each do |ss|
             ts = (ss.occurred_at || ss.created_at)&.in_time_zone&.strftime("%Y-%m-%d %H:%M")
-            ws.add_row [ss.id, ts, ss.payment_method, (ss.total_cents.to_i/100.0)],
-                       style: [nil, nil, nil, currency_fmt]
+            ws.add_row [ ss.id, ts, ss.payment_method, (ss.total_cents.to_i/100.0) ],
+                       style: [ nil, nil, nil, currency_fmt ]
 
             # Items de esa venta
             if ss.store_sale_items.any?
-              ws.add_row ["Items de la venta ##{ss.id}"], style: [bold_style]
-              ws.add_row ["Producto", "Cantidad", "P.U. (MXN)", "Subtotal (MXN)"], style: [header_style]*4
+              ws.add_row [ "Items de la venta ##{ss.id}" ], style: [ bold_style ]
+              ws.add_row [ "Producto", "Cantidad", "P.U. (MXN)", "Subtotal (MXN)" ], style: [ header_style ]*4
               ss.store_sale_items.each do |it|
+                item_name =
+                  if it.respond_to?(:description) && it.description.present?
+                    it.description
+                  else
+                    it.product&.name
+                  end
+
                 ws.add_row [
-                  it.product&.name,
+                  item_name,
                   it.quantity,
                   (it.unit_price_cents.to_i / 100.0),
                   ((it.unit_price_cents.to_i * it.quantity) / 100.0)
-                ], style: [nil, nil, currency_fmt, currency_fmt]
+                ], style: [ nil, nil, currency_fmt, currency_fmt ]
               end
             end
 
@@ -496,11 +517,11 @@ class ReportsController < ApplicationController
 
   def date_range_for(date, range)
     case range
-    when :day   then [date.beginning_of_day,  date.end_of_day]
-    when :week  then [date.beginning_of_week, date.end_of_week]
-    when :month then [date.beginning_of_month, date.end_of_month]
-    when :year  then [date.beginning_of_year, date.end_of_year]
-    else             [date.beginning_of_day,  date.end_of_day]
+    when :day   then [ date.beginning_of_day,  date.end_of_day ]
+    when :week  then [ date.beginning_of_week, date.end_of_week ]
+    when :month then [ date.beginning_of_month, date.end_of_month ]
+    when :year  then [ date.beginning_of_year, date.end_of_year ]
+    else             [ date.beginning_of_day,  date.end_of_day ]
     end
   end
 end

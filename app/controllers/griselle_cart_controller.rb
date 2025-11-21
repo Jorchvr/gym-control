@@ -129,20 +129,22 @@ class GriselleCartController < ApplicationController
       case l[:type]
       when "custom"
         ss.store_sale_items.create!(
-          product_id: generic_service.id,
-          quantity: qty,
-          unit_price_cents: unit
+          product_id:       generic_service.id,
+          quantity:         qty,
+          unit_price_cents: unit,
+          description:      l[:name] # ← aquí guardamos la descripción que escribes
         )
         # No alteramos stock en servicios
+
       when "product"
         product = Product.find_by(id: l[:product_id])
         next unless product
         ss.store_sale_items.create!(
-          product_id: product.id,
-          quantity: qty,
+          product_id:       product.id,
+          quantity:         qty,
           unit_price_cents: unit
         )
-        # Si NO quieres tocar stock de productos, comenta la línea siguiente
+        # Si NO quieres tocar stock de productos, deja comentada la línea siguiente
         # product.update!(stock: [product.stock.to_i - qty, 0].max)
       end
 

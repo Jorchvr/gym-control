@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_03_000000) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_21_014703) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -117,22 +117,22 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_03_000000) do
   create_table "store_sale_items", force: :cascade do |t|
     t.bigint "store_sale_id", null: false
     t.bigint "product_id", null: false
-    t.integer "quantity", null: false
-    t.integer "unit_price_cents", null: false
+    t.integer "quantity"
+    t.integer "unit_price_cents"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "description"
     t.index ["product_id"], name: "index_store_sale_items_on_product_id"
     t.index ["store_sale_id"], name: "index_store_sale_items_on_store_sale_id"
   end
 
   create_table "store_sales", force: :cascade do |t|
     t.bigint "user_id", null: false
-    t.integer "payment_method", default: 0, null: false
-    t.integer "total_cents", default: 0, null: false
-    t.datetime "occurred_at", null: false
+    t.integer "payment_method"
+    t.integer "total_cents"
+    t.datetime "occurred_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["occurred_at"], name: "index_store_sales_on_occurred_at"
     t.index ["user_id"], name: "index_store_sales_on_user_id"
   end
 
