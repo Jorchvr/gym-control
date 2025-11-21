@@ -45,6 +45,10 @@
          adjustments_cents =
            (@transactions || []).select { |t| t[:amount_cents].to_i < 0 }
                                .sum { |t| t[:amount_cents].to_i }
+
+         # 🔐 Evitar error cuando @by_method es nil
+         cash_cents     = (@by_method || {})["cash"].to_i
+         transfer_cents = (@by_method || {})["transfer"].to_i
       %>
 
       <section class="ticket-section">
@@ -93,14 +97,14 @@
         <div class="ticket-row">
           <div class="ticket-row-left">Efectivo</div>
           <div class="ticket-row-right ticket-mono">
-            MXN <%= number_to_currency(@by_method["cash"].to_i / 100.0, unit: "", precision: 2) %>
+            MXN <%= number_to_currency(cash_cents / 100.0, unit: "", precision: 2) %>
           </div>
         </div>
 
         <div class="ticket-row">
           <div class="ticket-row-left">Transferencia</div>
           <div class="ticket-row-right ticket-mono">
-            MXN <%= number_to_currency(@by_method["transfer"].to_i / 100.0, unit: "", precision: 2) %>
+            MXN <%= number_to_currency(transfer_cents / 100.0, unit: "", precision: 2) %>
           </div>
         </div>
       </section>
