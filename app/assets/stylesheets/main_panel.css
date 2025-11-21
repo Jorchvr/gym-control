@@ -898,27 +898,24 @@ body[class*="fixed"], body.fixed {
 
 /* Grid 5x2 */
 /* ======== Grid 5x2 de productos rápidos (diseño nuevo) ======== */
+/* ======== Grid 5x2 de productos rápidos (tamaño uniforme) ======== */
 
-.product-grid-card {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-/* grid 5 columnas x 2 filas, espacio uniforme */
 .product-grid {
   flex: 1;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   grid-template-rows: repeat(2, 1fr);
   gap: 1rem;
+  align-items: stretch;
+  justify-items: stretch;
 }
 
-/* Botón-cuadro: todos del mismo tamaño (cuadrados) */
+/* Botón-cuadro: todos del mismo tamaño (mismo alto) */
 .product-square-btn,
 .product-square-empty {
   position: relative;
-  aspect-ratio: 1 / 1;             /* cuadrados perfectos */
+  width: 100%;
+  height: 150px;                   /* 🔥 todos exactamente igual */
   border-radius: 1rem;
   border: 1px solid rgba(248, 113, 113, 0.55);
   background: radial-gradient(circle at 0% 0%, rgba(248, 113, 113, 0.18), rgba(15, 15, 20, 0.98));
@@ -936,6 +933,13 @@ body[class*="fixed"], body.fixed {
     box-shadow 0.12s ease,
     border-color 0.12s ease,
     background 0.12s ease;
+  box-sizing: border-box;
+}
+
+/* quitar el aspect-ratio anterior si aún lo tienes */
+.product-square-btn,
+.product-square-empty {
+  aspect-ratio: unset;
 }
 
 /* estado normal */
@@ -952,20 +956,18 @@ body[class*="fixed"], body.fixed {
   background: radial-gradient(circle at 0% 0%, rgba(248, 113, 113, 0.28), rgba(15, 15, 20, 0.98));
 }
 
-/* nombre grande, blanco */
 .product-square-name {
   font-weight: 700;
-  font-size: 1rem;                  /* más grande */
+  font-size: 1rem;
   line-height: 1.25;
   color: #ffffff;
   max-width: 100%;
   display: -webkit-box;
-  -webkit-line-clamp: 2;            /* máximo 2 líneas */
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-/* footer con precio + stock alineados */
 .product-square-footer {
   width: 100%;
   display: flex;
@@ -975,19 +977,17 @@ body[class*="fixed"], body.fixed {
   font-size: 0.9rem;
 }
 
-/* precio destacado */
 .product-square-price {
   font-weight: 700;
   color: rgb(248, 113, 113);
 }
 
-/* stock en gris claro */
 .product-square-stock {
   color: rgba(148, 163, 184, 0.95);
   font-weight: 500;
 }
 
-/* cuadros vacíos solo para completar la grilla, mismos tamaños pero apagados */
+/* cuadros vacíos de relleno, mismo tamaño pero apagados */
 .product-square-empty {
   border-style: dashed;
   border-color: rgba(75, 85, 99, 0.6);
