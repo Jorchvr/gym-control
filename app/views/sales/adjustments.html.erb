@@ -1,88 +1,119 @@
-<%= stylesheet_link_tag "main_panel", media: "all", "data-turbo-track": "reload" %>
+<%= stylesheet_link_tag "main_panel", media: "all" %>
 
-<div class="header-row" style="margin-bottom:.75rem;">
-  <h2 class="title">Ajustes / Ventas negativas</h2>
-  <%= link_to "Volver a ventas", sales_path, class: "btn" %>
+<div class="header-row">
+  <h2 class="title">Ajustes de tienda (ventas negativas)</h2>
+  <div style="display:flex; gap:.6rem; flex-wrap:wrap;">
+    <%= link_to "Inicio", authenticated_root_path, class: "btn" %>
+    <%= link_to "Historial", history_path, class: "btn" %>
+  </div>
 </div>
 
-<% if flash[:alert].present? %>
-  <div class="flash flash--alert"><%= flash[:alert] %></div>
-<% end %>
-<% if flash[:notice].present? %>
-  <div class="flash flash--notice"><%= flash[:notice] %></div>
-<% end %>
-
 <% if @needs_unlock %>
-  <!-- Paso 1: pedir código de seguridad -->
-  <div class="card">
-    <h3 class="card-title mb-2">Código de seguridad</h3>
-    <p class="text-muted">Ingresa el código para acceder a los ajustes del día.</p>
+  <div class="card" style="max-width:420px;">
+    <h3 class="card-title mb-2">Acceso restringido</h3>
+    <p class="text-muted">
+      Para entrar a la sección de ajustes de tienda, ingresa el código de seguridad.
+    </p>
 
-    <%= form_with url: unlock_adjustments_sales_path, method: :post, local: true do |f| %>
-      <div class="form-row">
-        <label class="label">Código</label>
-        <%= f.password_field :security_code, class: "form-input form-input--xl", autofocus: true %>
+    <% if flash[:alert].present? %>
+      <div class="flash flash--alert" style="margin-top:.5rem;"><%= flash[:alert] %></div>
+    <% end %>
+    <% if flash[:notice].present? %>
+      <div class="flash flash--notice" style="margin-top:.5rem;"><%= flash[:notice] %></div>
+    <% end %>
+
+    <%= form_with url: unlock_adjustments_sales_path, method: :post, local: true do %>
+      <div class="form-row" style="margin-top:.75rem;">
+        <label class="label">Código secreto</label>
+        <%= password_field_tag :security_code, nil,
+              class: "form-input form-input--xl",
+              autocomplete: "off",
+              placeholder: "••••••" %>
+        <small class="text-muted">
+          Solo personal autorizado. Código actual: administrador lo define (010101).
+        </small>
       </div>
-      <div class="mt-4">
-        <%= f.submit "Desbloquear", class: "btn btn-primary" %>
+
+      <div class="mt-4" style="display:flex; gap:.75rem;">
+        <%= submit_tag "Desbloquear", class: "btn btn-primary" %>
       </div>
     <% end %>
   </div>
 
 <% else %>
-  <!-- Paso 2: listado de ventas del día, con botón de venta negativa -->
   <div class="card">
     <h3 class="card-title mb-2">
-      Ventas de membresía del día
-      <small style="font-weight:normal; opacity:.8;">(<%= @date.to_s %>)</small>
+      Ventas de tienda del día (<%= @date %>)
     </h3>
 
-    <% if @sales.blank? %>
-      <p class="text-muted">No hay ventas de membresía para ajustar.</p>
+    <% if flash[:alert].present? %>
+      <div class="flash flash--alert" style="margin-bottom:.5rem;"><%= flash[:alert] %></div>
+    <% end %>
+    <% if flash[:notice].present? %>
+      <div class="flash flash--notice" style="margin-bottom:.5rem;"><%= flash[:notice] %></div>
+    <% end %>
+
+    <% if @store_sales.blank? %>
+      <p class="text-muted">No hay ventas de tienda en el día para ajustar.</p>
     <% else %>
       <table class="table">
         <thead>
           <tr>
-            <th>Hora</th>
-            <th>ID</th>
-            <th>Cliente</th>
-            <th>Membresía</th>
-            <th>Monto</th>
-            <th>Método</th>
+            <th>Fecha/Hora</th>
             <th>Usuario</th>
-            <th>Ajuste</th>
+            <th>ID</th>
+            <th>Método</th>
+            <th>Total</th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>
-          <% @sales.each do |s| %>
-            <% ts = (s.occurred_at || s.created_at)&.in_time_zone&.strftime("%H:%M") %>
+          <% @store_sales.each do |ss| %>
             <tr>
-              <td><%= ts %></td>
-              <td>#<%= s.id %></td>
-              <td><%= s.client&.name || "-" %></td>
-              <td><%= s.membership_type || "-" %></td>
-              <td>$<%= "%.2f" % (s.amount_cents.to_i / 100.0) %></td>
-              <td><%= s.payment_method || "-" %></td>
-              <td><%= s.user&.name || s.user&.email %></td>
+              <td><%= (ss.occurred_at || ss.created_at)&.in_time_zone&.strftime("%Y-%m-%d %H:%M") %></td>
+              <td><%= ss.user&.name || ss.user&.email %></td>
+              <td>#<%= ss.id %></td>
+              <td><%= ss.payment_method %></td>
+              <td><%= number_to_currency(ss.total_cents.to_i / 100.0, unit: "MXN $", precision: 2) %></td>
               <td>
-                <% if s.amount_cents.to_i > 0 %>
-                  <%= form_with url: reverse_transaction_sales_path, method: :post, local: true do |f| %>
-                    <%= hidden_field_tag :sale_id, s.id %>
-                    <div style="display:flex; flex-direction:column; gap:.25rem;">
-                      <%= text_field_tag :reason, nil,
-                            placeholder: "Motivo (opcional)",
-                            class: "form-input",
-                            style: "max-width:180px;" %>
-                      <%= f.submit "Venta negativa",
-                            class: "btn btn-danger btn-sm",
-                            data: { turbo_confirm: "¿Seguro que quieres crear una venta negativa que anule esta venta?" } %>
-                    </div>
-                  <% end %>
-                <% else %>
-                  <span class="text-muted">Ya es negativa</span>
+                <%= form_with url: reverse_transaction_sales_path, method: :post,
+                              data: { turbo_confirm: "¿Crear una venta negativa para anular la venta de tienda ##{ss.id}?" },
+                              local: true do %>
+                  <%= hidden_field_tag :store_sale_id, ss.id %>
+                  <%= text_field_tag :reason, nil,
+                        placeholder: "Motivo (opcional)",
+                        class: "form-input",
+                        style: "max-width: 220px; display:inline-block; margin-right:.5rem;" %>
+                  <%= submit_tag "Venta negativa", class: "btn btn-danger" %>
                 <% end %>
               </td>
             </tr>
+
+            <% if ss.store_sale_items.any? %>
+              <tr>
+                <td colspan="6">
+                  <div class="subtable">
+                    <strong>Items:</strong>
+                    <ul>
+                      <% ss.store_sale_items.each do |it| %>
+                        <% item_name =
+                             if it.respond_to?(:description) && it.description.present?
+                               it.description
+                             elsif it.product.present?
+                               it.product.name
+                             else
+                               "Producto ##{it.id}"
+                             end %>
+                        <li>
+                          <%= item_name %> x<%= it.quantity %> —
+                          <%= number_to_currency(it.unit_price_cents.to_i / 100.0, unit: "MXN $", precision: 2) %> (c/u)
+                        </li>
+                      <% end %>
+                    </ul>
+                  </div>
+                </td>
+              </tr>
+            <% end %>
           <% end %>
         </tbody>
       </table>

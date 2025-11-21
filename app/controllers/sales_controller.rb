@@ -88,63 +88,62 @@ class SalesController < ApplicationController
   end
 
   # =====================================================
-  # SECCIÓN PROTEGIDA: AJUSTES / VENTAS NEGATIVAS
+  # SECCIÓN PROTEGIDA: AJUSTES / VENTAS NEGATIVAS (SOLO TIENDA)
   # =====================================================
 
   # GET /sales/adjustments
   # 1) Si no está desbloqueado, muestra formulario de código.
-  # 2) Si ya está desbloqueado, muestra ventas del día del usuario + botón de venta negativa.
+  # 2) Si ya está desbloqueado, muestra ventas de TIENDA del día del usuario + botón de venta negativa.
   def adjustments
     @date = Time.zone.today
     @from = @date.beginning_of_day
     @to   = @date.end_of_day
 
-    unless session[:sales_adjustments_unlocked]
+    unless session[:store_adjustments_unlocked]
       @needs_unlock = true
       return
     end
 
-    scope = Sale.where("COALESCE(sales.occurred_at, sales.created_at) BETWEEN ? AND ?", @from, @to)
+    scope = StoreSale.where("COALESCE(store_sales.occurred_at, store_sales.created_at) BETWEEN ? AND ?", @from, @to)
     scope = scope.where(user_id: current_user.id) unless superuser?
 
-    @sales = scope
-               .includes(:user, :client)
-               .order(Arel.sql("COALESCE(sales.occurred_at, sales.created_at) ASC"))
+    @store_sales = scope.includes(:user, store_sale_items: :product)
   end
 
   # POST /sales/unlock_adjustments
+  # Código secreto: 010101
   def unlock_adjustments
     code     = params[:security_code].to_s.strip
-    expected = ENV.fetch("NEGATIVE_SALE_CODE", "8421").to_s
+    expected = "010101"
 
     ok =
       code.present? &&
       expected.present? &&
-      code.length == expected.length && # evita ArgumentError de secure_compare
+      code.length == expected.length && # evita error en secure_compare
       ActiveSupport::SecurityUtils.secure_compare(code, expected)
 
     if ok
-      session[:sales_adjustments_unlocked] = true
-      redirect_to adjustments_sales_path, notice: "Sección de ajustes desbloqueada."
+      session[:store_adjustments_unlocked] = true
+      redirect_to adjustments_sales_path, notice: "Sección de ajustes de tienda desbloqueada."
     else
-      session[:sales_adjustments_unlocked] = false
+      session[:store_adjustments_unlocked] = false
       redirect_to adjustments_sales_path, alert: "Código de seguridad incorrecto."
     end
   end
 
   # POST /sales/reverse_transaction
-  # Crea una venta negativa para anular una venta de membresía.
+  # Crea una venta NEGATIVA de TIENDA para anular una venta de StoreSale.
   def reverse_transaction
-    unless session[:sales_adjustments_unlocked]
+    unless session[:store_adjustments_unlocked]
       redirect_to adjustments_sales_path, alert: "Debes ingresar el código de seguridad."
       return
     end
 
-    sale_id  = params[:sale_id].to_i
-    original = Sale.find_by(id: sale_id)
+    ss_id    = params[:store_sale_id].to_i
+    original = StoreSale.includes(:store_sale_items).find_by(id: ss_id)
 
     unless original
-      redirect_to adjustments_sales_path, alert: "Venta no encontrada."
+      redirect_to adjustments_sales_path, alert: "Venta de tienda no encontrada."
       return
     end
 
@@ -156,7 +155,7 @@ class SalesController < ApplicationController
 
     reason = params[:reason].to_s.strip
 
-    Sale.transaction do
+    StoreSale.transaction do
       extra_metadata =
         if original.respond_to?(:metadata)
           (original.metadata || {}).merge(reversal_of_id: original.id, reason: reason)
@@ -164,18 +163,27 @@ class SalesController < ApplicationController
           { reversal_of_id: original.id, reason: reason }
         end
 
-      Sale.create!(
-        client:          original.client,
-        user:            current_user,
-        membership_type: original.membership_type,
-        payment_method:  original.payment_method,
-        amount_cents:    -original.amount_cents, # venta negativa
-        occurred_at:     Time.current,
-        metadata:        extra_metadata
+      # Venta negativa principal
+      reversal = StoreSale.create!(
+        user:           current_user,
+        payment_method: original.payment_method,
+        total_cents:    -original.total_cents.to_i,
+        occurred_at:    Time.current,
+        metadata:       extra_metadata
       )
+
+      # Items espejo en negativo
+      original.store_sale_items.find_each do |item|
+        reversal.store_sale_items.create!(
+          product_id:        item.product_id,
+          quantity:          item.quantity,
+          unit_price_cents: -item.unit_price_cents.to_i,
+          description:      (item.respond_to?(:description) ? item.description : nil)
+        )
+      end
     end
 
-    redirect_to adjustments_sales_path, notice: "Venta negativa creada para anular la venta ##{original.id}."
+    redirect_to adjustments_sales_path, notice: "Venta negativa creada para anular la venta de tienda ##{original.id}."
   rescue => e
     redirect_to adjustments_sales_path, alert: "No se pudo crear la venta negativa: #{e.message}"
   end
