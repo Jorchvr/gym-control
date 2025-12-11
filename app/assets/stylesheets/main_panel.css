@@ -1415,4 +1415,116 @@ body[class*="fixed"], body.fixed {
   font-size: .9rem;
   color: var(--muted);
 }
+/* ===== GRID DE PRODUCTOS (2 filas fijas, columnas ilimitadas) ===== */
 
+.products-grid {
+  display: grid;
+  grid-auto-flow: column;       /* Agrega columnas automáticamente */
+  grid-template-rows: repeat(2, 1fr); /* Siempre 2 filas */
+  gap: 14px;
+  width: 100%;
+  overflow-x: auto;             /* Permite ver todos los productos */
+  padding-bottom: 10px;
+  scrollbar-width: thin;
+}
+
+/* Botones que se auto-reducen si hay más columnas */
+.product-card {
+  width: 150px;                 /* Tamaño base */
+  height: 120px;                /* Altura base */
+  flex-shrink: 1;               /* Se reduce si es necesario */
+  transition: all 0.2s ease-in-out;
+}
+
+.products-grid:has(.product-card:nth-child(n+9)) .product-card {
+  width: 135px;
+  height: 110px;
+}
+
+.products-grid:has(.product-card:nth-child(n+13)) .product-card {
+  width: 120px;
+  height: 100px;
+}
+
+.products-grid:has(.product-card:nth-child(n+17)) .product-card {
+  width: 110px;
+  height: 95px;
+}
+
+/* ====== FIX REAL PARA TU GRID EXISTENTE ====== */
+/* Tu HTML usa .product-grid, NO .shop-products */
+
+/* Siempre 2 filas, columnas infinitas */
+.product-grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  grid-template-rows: repeat(2, 1fr); /* siempre 2 filas */
+  gap: 1rem;
+  width: 100%;
+}
+
+/* Cuadros de cada producto */
+.product-square-btn {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+
+  background: rgba(255,255,255,.06);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+
+  padding: 1.2rem;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #f1f5f9;
+
+  transition: transform .15s ease, filter .15s ease;
+}
+
+.product-square-btn:hover {
+  filter: brightness(1.1);
+  transform: translateY(-2px);
+}
+
+/* Nombre del producto */
+.product-square-name {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+/* Footer precio + stock */
+.product-square-footer {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+/* ====== AUTO-SCALING cuando haya más de 10+ productos ====== */
+@media (max-width: 1700px) {
+  .product-square-btn { padding: 1rem; font-size: 0.95rem; }
+  .product-square-name { font-size: 0.95rem; }
+}
+
+@media (max-width: 1500px) {
+  .product-square-btn { padding: 0.85rem; font-size: 0.88rem; }
+  .product-square-name { font-size: 0.88rem; }
+}
+
+@media (max-width: 1300px) {
+  .product-square-btn { padding: 0.75rem; font-size: 0.82rem; }
+  .product-square-name { font-size: 0.82rem; }
+}
+
+@media (max-width: 1100px) {
+  .product-grid {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    grid-template-rows: auto;
+  }
+}
