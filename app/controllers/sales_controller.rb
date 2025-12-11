@@ -1,4 +1,3 @@
-# app/controllers/sales_controller.rb
 class SalesController < ApplicationController
   before_action :authenticate_user!
 
@@ -164,7 +163,6 @@ class SalesController < ApplicationController
         occurred_at:    Time.current
       }
 
-      # Descripción clara de VENTA NEGATIVA en la cabecera
       base_reason = reason.presence || "ajuste de tienda"
       if StoreSale.column_names.include?("description")
         attrs[:description] = "VENTA NEGATIVA (DEVOLUCIÓN) de venta ##{original.id} - #{base_reason}"
@@ -180,7 +178,6 @@ class SalesController < ApplicationController
       reversal.save!(validate: false)
 
       original.store_sale_items.find_each do |item|
-        # Armamos una descripción base del item original
         base_desc =
           if item.respond_to?(:description) && item.description.present?
             item.description
@@ -196,7 +193,6 @@ class SalesController < ApplicationController
           unit_price_cents: -item.unit_price_cents.to_i
         )
 
-        # Descripción marcada como DEVOLUCIÓN
         if reversal_item.respond_to?(:description)
           reversal_item.description = "DEVOLUCIÓN - #{base_desc}"
         end
@@ -213,6 +209,55 @@ class SalesController < ApplicationController
   rescue => e
     redirect_to adjustments_sales_path, alert: "No se pudo crear la venta negativa: #{e.message}"
   end
+
+
+
+  # =====================================================================
+  # ✅ NUEVO MÉTODO: CORTE DEL DÍA (SIN MODIFICAR NADA DEL CONTROLADOR)
+  # =====================================================================
+  def corte
+    @date = Time.zone.today
+    from  = @date.beginning_of_day
+    to    = @date.end_of_day
+
+    user = current_user
+    @user_name = user.name rescue user.email
+
+    # VENTAS DEL DÍA
+    sales = Sale.where("COALESCE(occurred_at, created_at) BETWEEN ? AND ?", from, to)
+    store_sales = StoreSale.where("COALESCE(occurred_at, created_at) BETWEEN ? AND ?", from, to)
+
+    unless superuser?
+      sales       = sales.where(user_id: user.id)
+      store_sales = store_sales.where(user_id: user.id)
+    end
+
+    @ops_count = sales.count + store_sales.count
+
+    @member_cents      = sales.sum(:amount_cents).to_i
+    @store_cents       = store_sales.sum(:total_cents).to_i
+    @adjustments_cents = store_sales.where("total_cents < 0").sum(:total_cents).to_i
+
+    @total_cents = @member_cents + @store_cents + @adjustments_cents
+
+    # PAGOS
+    @by_method = { "cash" => 0, "transfer" => 0 }
+
+    sales.each do |s|
+      pm = s.payment_method.to_s
+      @by_method[pm] += s.amount_cents.to_i if @by_method.key?(pm)
+    end
+
+    store_sales.each do |ss|
+      pm = ss.payment_method.to_s
+      @by_method[pm] += ss.total_cents.to_i if @by_method.key?(pm)
+    end
+
+    # CHECKINS Y NUEVOS CLIENTES
+    @checkins_today = Checkin.where(created_at: from..to).count
+    @new_clients_today = Client.where(created_at: from..to).count
+  end
+
 
   private
 
