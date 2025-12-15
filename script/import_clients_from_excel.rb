@@ -3,8 +3,10 @@
 require 'spreadsheet'
 require 'date'
 
-# --- CONFIGURACIÓN ---
-EXCEL_FILE_PATH = '/tmp/clientes_nuevo.xls'
+# --- CONFIGURACIÓN CORREGIDA ---
+# Según tu git, el archivo está dentro de 'db/import_files'
+EXCEL_FILE_PATH = Rails.root.join('db', 'import_files', 'clientes_nuevo.xls').to_s
+
 DEFAULT_USER_ID = 1
 
 # Nombres EXACTOS de los encabezados en tu Excel
@@ -39,14 +41,21 @@ end
 # --- INICIO DEL SCRIPT ---
 
 puts '--- INICIO DE IMPORTACIÓN DE CLIENTES ---'
+puts "Buscando archivo en: #{EXCEL_FILE_PATH}"
 
 unless File.exist?(EXCEL_FILE_PATH)
-  puts "ERROR: No se encuentra el archivo en #{EXCEL_FILE_PATH}"
+  puts "❌ ERROR CRÍTICO: No se encuentra el archivo."
+  puts "Verifica que 'clientes_nuevo.xls' esté dentro de la carpeta 'db/import_files' en tu proyecto."
   exit
 end
 
-book = Spreadsheet.open(EXCEL_FILE_PATH)
-sheet = book.worksheet(0)
+begin
+  book = Spreadsheet.open(EXCEL_FILE_PATH)
+  sheet = book.worksheet(0)
+rescue => e
+  puts "❌ ERROR al abrir el Excel: #{e.message}"
+  exit
+end
 
 # 1. ENCONTRAR ÍNDICES POR NOMBRE DE ENCABEZADO
 header_row = sheet.row(0)
@@ -62,7 +71,7 @@ header_row.each_with_index do |cell, index|
 end
 
 if idx_nombre.nil? || idx_plan.nil? || idx_fecha.nil?
-  puts "ERROR CRÍTICO: No se encontraron los encabezados correctos."
+  puts "❌ ERROR CRÍTICO: No se encontraron los encabezados correctos."
   exit
 end
 
@@ -78,51 +87,41 @@ failed = 0
 
 ActiveRecord::Base.transaction do
   sheet.each_with_index do |row, index|
-    next if index == 0 # Saltar encabezado
+    next if index == 0
     next if row.nil? || row.all?(&:nil?)
 
     nombre_raw = row[idx_nombre].to_s.strip
-    next if nombre_raw.blank? # Saltar si no hay nombre
+    next if nombre_raw.blank?
 
-    # Normalizar datos
     final_membership = normalize_membership_type(row[idx_plan])
     final_enrolled_on = normalize_date(row[idx_fecha])
 
-    # --- CALCULAR PRÓXIMO PAGO (LÓGICA AGREGADA) ---
     final_next_payment = nil
-
     if final_enrolled_on.present?
       final_next_payment = case final_membership
       when 'day'   then final_enrolled_on + 1.day
       when 'week'  then final_enrolled_on + 1.week
       when 'month' then final_enrolled_on + 1.month
-      else              final_enrolled_on + 1.day
+      else              final_enrolled_on + 1.month
       end
     end
-    # -----------------------------------------------
 
     begin
       Client.create!(
-        client_number: nil, # Dejar que Rails asigne 1, 2, 3...
+        client_number: nil,
         name: nombre_raw,
         membership_type: final_membership,
         enrolled_on: final_enrolled_on,
-        next_payment_on: final_next_payment, # <--- ¡AQUÍ ESTÁ LA SOLUCIÓN!
+        next_payment_on: final_next_payment,
         user_id: DEFAULT_USER_ID
       )
       created += 1
-
-      if created <= 5
-        puts "  -> ID #{created}: #{nombre_raw} | Inscripción: #{final_enrolled_on} | Vence: #{final_next_payment}"
-      end
-
     rescue => e
       failed += 1
-      puts "  [ERROR] Fila #{index + 1} (#{nombre_raw}): #{e.message}"
+      puts "  [ERROR] Fila #{index + 1}: #{e.message}"
     end
   end
 end
 
 puts "--- FIN ---"
 puts "Clientes creados: #{created}"
-puts "¡ÉXITO! Datos importados con fechas de pago calculadas."
