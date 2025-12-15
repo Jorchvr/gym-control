@@ -1,29 +1,55 @@
-# app/models/store_sale.rb
-class StoreSale < ApplicationRecord
-  belongs_to :user
-  has_many :store_sale_items, dependent: :destroy
+class StoreSalesController < ApplicationController
+  before_action :authenticate_user!
 
-  enum :payment_method, { cash: 0, transfer: 1 }
+  # ... (tus otros métodos index, new, etc.) ...
 
-  validates :total_cents, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
-  validates :user, presence: true
+  # POST /store_sales
+  def create
+    @store_sale = StoreSale.new(store_sale_params)
+    @store_sale.user = current_user
+    @store_sale.occurred_at ||= Time.current
 
-  # Igual que en Sale: si no viene occurred_at, lo seteamos
-  before_validation :ensure_occurred_at
+    # Usamos una transacción para asegurar que todo se guarde o nada
+    ActiveRecord::Base.transaction do
+      # 1. Intentamos guardar la venta (esto guardará los items también)
+      # Si no hay stock, el modelo StoreSaleItem lanzará un error aquí.
+      @store_sale.save!
 
-  scope :on_date, ->(date) {
-    from = date.beginning_of_day
-    to   = date.end_of_day
-    where("COALESCE(occurred_at, created_at) BETWEEN ? AND ?", from, to)
-  }
+      # 2. Si se guardó, descontamos el stock de los productos
+      @store_sale.store_sale_items.each do |item|
+        product = item.product
+        new_stock = product.stock - item.quantity
+        product.update!(stock: new_stock)
+      end
+    end
 
-  def total
-    (total_cents.to_i / 100.0).round(2)
+    # ÉXITO: Si llegamos aquí, todo salió bien
+    redirect_to store_sales_path, notice: "Venta registrada correctamente."
+
+  rescue ActiveRecord::RecordInvalid => e
+    # 🛑 AQUÍ ATRAPAMOS EL ERROR 500
+    # En lugar de tronar, mostramos el mensaje que escribió el modelo (ej: "Stock insuficiente...")
+
+    # Recargamos productos para que el formulario no se rompa al volver a renderizar
+    @products = Product.where(active: true).order(:name)
+
+    flash.now[:alert] = e.record.errors.full_messages.to_sentence
+    render :new, status: :unprocessable_entity
+
+  rescue => e
+    # Captura cualquier otro error inesperado
+    flash.now[:alert] = "Error inesperado: #{e.message}"
+    render :new, status: :unprocessable_entity
   end
 
   private
 
-  def ensure_occurred_at
-    self.occurred_at ||= Time.current
+  # Asegúrate de tener estos params definidos al final de tu archivo
+  def store_sale_params
+    params.require(:store_sale).permit(
+      :payment_method,
+      :client_id, # Si asocias clientes a ventas de tienda
+      store_sale_items_attributes: [ :product_id, :quantity, :unit_price_cents, :_destroy ]
+    )
   end
 end

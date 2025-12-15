@@ -2,23 +2,22 @@ class StoreSaleItem < ApplicationRecord
   belongs_to :store_sale
   belongs_to :product
 
-  # Validaciones existentes (las conservamos)
+  # Validaciones básicas de números
   validates :quantity, numericality: { only_integer: true, greater_than: 0 }
   validates :unit_price_cents, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
 
-  # --- NUEVA VALIDACIÓN: Verificar stock antes de crear ---
+  # ✅ VALIDACIÓN CLAVE: Revisa el stock antes de crear
   validate :check_stock_availability, on: :create
 
   private
 
   def check_stock_availability
-    # Si no hay producto asociado, no hacemos nada (Rails fallará por falta de asociación si es obligatorio)
+    # Si no hay producto asociado, salimos (otra validación fallará antes)
     return unless product.present?
 
-    # Verificamos si la cantidad que intentas vender es mayor al stock que tiene el producto
+    # Si intentas vender más de lo que hay en inventario
     if product.stock < quantity
-      # Agregamos un error al modelo.
-      # Esto hace que 'save!' se detenga y envíe este mensaje al controlador.
+      # Agregamos el error. Esto hace que 'save!' falle y lance la excepción que atraparemos en el controlador.
       errors.add(:base, "Stock insuficiente para '#{product.name}'. Disponible: #{product.stock}, Solicitado: #{quantity}.")
     end
   end
