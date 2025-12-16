@@ -12,12 +12,13 @@ Rails.application.routes.draw do
   # ================== Clientes (CRUD membresías) ==================
   resources :clients
 
-  # ================== Ventas de membresías (registro/consulta) ==================
+  # ================== Ventas (registro/consulta/corte/ajustes) ==================
   resources :sales, only: [ :index, :show ] do
     collection do
-      get  :adjustments           # pantalla protegida con código
-      post :unlock_adjustments    # POST para validar código
-      post :reverse_transaction   # crea venta negativa
+      get  :corte               # <--- ✅ ESTA ERA LA RUTA QUE FALTABA
+      get  :adjustments
+      post :unlock_adjustments
+      post :reverse_transaction
     end
   end
 
