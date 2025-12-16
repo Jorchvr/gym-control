@@ -167,7 +167,8 @@ class SalesController < ApplicationController
       # Evitar que la devolución active días de acceso (si usas esa columna)
       reversal.duration_days = 0 if reversal.respond_to?(:duration_days=)
 
-      if reversal.save
+      # ✅ CORREGIDO: Usamos validate: false
+      if reversal.save(validate: false)
         redirect_to adjustments_sales_path, notice: "Devolución de membresía ##{original.id} registrada."
       else
         redirect_to adjustments_sales_path, alert: "Error al guardar devolución."
@@ -202,14 +203,17 @@ class SalesController < ApplicationController
         end
 
         reversal = StoreSale.new(attrs)
+        # Guardamos la venta padre sin validar
         reversal.save!(validate: false)
 
         original.store_sale_items.find_each do |item|
-          reversal.store_sale_items.create!(
+          # ✅ CORREGIDO: Construimos el item y lo guardamos sin validar
+          rev_item = reversal.store_sale_items.build(
             product_id:       item.product_id,
             quantity:         item.quantity,
             unit_price_cents: -item.unit_price_cents.to_i
           )
+          rev_item.save!(validate: false)
 
           if (product = item.product)
             product.update!(stock: product.stock.to_i + item.quantity.to_i)
