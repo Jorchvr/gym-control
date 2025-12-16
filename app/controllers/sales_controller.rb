@@ -77,11 +77,11 @@ class SalesController < ApplicationController
   end
 
   def show
-    # ...
+    # Tu lógica de show si la tienes, o dejar vacío si no se usa
   end
 
   # =====================================================
-  # SECCIÓN PROTEGIDA: AJUSTES / VENTAS NEGATIVAS (SOLO TIENDA ONLINE)
+  # SECCIÓN PROTEGIDA: AJUSTES / VENTAS NEGATIVAS
   # =====================================================
 
   def adjustments
@@ -94,17 +94,20 @@ class SalesController < ApplicationController
       return
     end
 
-    scope = StoreSale.where("COALESCE(store_sales.occurred_at, store_sales.created_at) BETWEEN ? AND ?", @from, @to)
-    scope = scope.where(user_id: current_user.id) unless superuser?
+    # 1. Buscar Ventas de Tienda (StoreSale)
+    store_scope = StoreSale.where("COALESCE(store_sales.occurred_at, store_sales.created_at) BETWEEN ? AND ?", @from, @to)
 
-    store_sales = scope.includes(:user, store_sale_items: :product).to_a
+    # 2. Buscar Ventas de Membresías (Sale)
+    membership_scope = Sale.where("COALESCE(sales.occurred_at, sales.created_at) BETWEEN ? AND ?", @from, @to)
 
-    @store_sales = store_sales.select do |ss|
-      ss.store_sale_items.any? do |it|
-        prod = it.product
-        prod.present? && prod.name != "Servicio Griselle"
-      end
+    unless superuser?
+      store_scope      = store_scope.where(user_id: current_user.id)
+      membership_scope = membership_scope.where(user_id: current_user.id)
     end
+
+    # Ordenamos por ID descendente para ver lo más reciente arriba
+    @store_sales = store_scope.includes(:user, store_sale_items: :product).order(id: :desc)
+    @membership_sales = membership_scope.includes(:user, :client).order(id: :desc)
   end
 
   # POST /sales/unlock_adjustments
@@ -121,7 +124,7 @@ class SalesController < ApplicationController
 
     if ok
       session[:store_adjustments_unlocked] = true
-      redirect_to adjustments_sales_path, notice: "Sección de ajustes de tienda desbloqueada."
+      redirect_to adjustments_sales_path, notice: "Sección de ajustes desbloqueada."
     else
       session[:store_adjustments_unlocked] = false
       redirect_to adjustments_sales_path, alert: "Código de seguridad incorrecto."
@@ -135,85 +138,98 @@ class SalesController < ApplicationController
       return
     end
 
-    ss_id    = params[:store_sale_id].to_i
-    original = StoreSale.includes(store_sale_items: :product).find_by(id: ss_id)
-
-    unless original
-      redirect_to adjustments_sales_path, alert: "Venta de tienda no encontrada."
-      return
-    end
-
-    if original.total_cents.to_i <= 0
-      redirect_to adjustments_sales_path, alert: "Esta venta ya es un ajuste o negativa y no se puede revertir."
-      return
-    end
-
-    if !superuser? && original.user_id != current_user.id
-      redirect_to adjustments_sales_path, alert: "No puedes ajustar ventas de otros usuarios."
-      return
-    end
-
     reason = params[:reason].to_s.strip
 
-    StoreSale.transaction do
-      attrs = {
+    # --- CASO A: REVERTIR MEMBRESÍA ---
+    if params[:sale_id].present?
+      original = Sale.find_by(id: params[:sale_id])
+
+      if original.nil? || original.amount_cents <= 0
+        redirect_to adjustments_sales_path, alert: "Membresía no encontrada o ya es negativa."
+        return
+      end
+
+      if !superuser? && original.user_id != current_user.id
+        redirect_to adjustments_sales_path, alert: "No puedes revertir ventas de otros usuarios."
+        return
+      end
+
+      # Crear la venta negativa de membresía
+      reversal = Sale.new(
         user:           current_user,
+        client_id:      original.client_id,
         payment_method: original.payment_method,
-        total_cents:    -original.total_cents.to_i,
+        amount_cents:   -original.amount_cents.to_i, # Negativo
+        membership_type: "DEVOLUCIÓN - #{original.membership_type}",
         occurred_at:    Time.current
-      }
+      )
 
-      base_reason = reason.presence || "ajuste de tienda"
-      if StoreSale.column_names.include?("description")
-        attrs[:description] = "VENTA NEGATIVA (DEVOLUCIÓN) de venta ##{original.id} - #{base_reason}"
-      elsif StoreSale.column_names.include?("note")
-        attrs[:note] = "VENTA NEGATIVA (DEVOLUCIÓN) de venta ##{original.id} - #{base_reason}"
+      # Evitar que la devolución active días de acceso (si usas esa columna)
+      reversal.duration_days = 0 if reversal.respond_to?(:duration_days=)
+
+      if reversal.save
+        redirect_to adjustments_sales_path, notice: "Devolución de membresía ##{original.id} registrada."
+      else
+        redirect_to adjustments_sales_path, alert: "Error al guardar devolución."
       end
 
-      if StoreSale.column_names.include?("metadata")
-        attrs[:metadata] = { reversal_of_id: original.id, reason: reason }
+    # --- CASO B: REVERTIR TIENDA ---
+    elsif params[:store_sale_id].present?
+      original = StoreSale.includes(store_sale_items: :product).find_by(id: params[:store_sale_id])
+
+      if original.nil? || original.total_cents.to_i <= 0
+        redirect_to adjustments_sales_path, alert: "Venta de tienda no válida para reversión."
+        return
       end
 
-      reversal = StoreSale.new(attrs)
-      reversal.save!(validate: false)
+      if !superuser? && original.user_id != current_user.id
+        redirect_to adjustments_sales_path, alert: "No puedes ajustar ventas de otros usuarios."
+        return
+      end
 
-      original.store_sale_items.find_each do |item|
-        base_desc =
-          if item.respond_to?(:description) && item.description.present?
-            item.description
-          elsif item.product
-            "#{item.product.name} x#{item.quantity}"
-          else
-            "Item #{item.id}"
+      StoreSale.transaction do
+        attrs = {
+          user:           current_user,
+          payment_method: original.payment_method,
+          total_cents:    -original.total_cents.to_i,
+          occurred_at:    Time.current
+        }
+
+        if StoreSale.column_names.include?("note")
+          attrs[:note] = "DEVOLUCIÓN ##{original.id}: #{reason}"
+        elsif StoreSale.column_names.include?("description")
+          attrs[:description] = "DEVOLUCIÓN ##{original.id}: #{reason}"
+        end
+
+        reversal = StoreSale.new(attrs)
+        reversal.save!(validate: false)
+
+        original.store_sale_items.find_each do |item|
+          reversal.store_sale_items.create!(
+            product_id:       item.product_id,
+            quantity:         item.quantity,
+            unit_price_cents: -item.unit_price_cents.to_i
+          )
+
+          if (product = item.product)
+            product.update!(stock: product.stock.to_i + item.quantity.to_i)
           end
-
-        reversal_item = reversal.store_sale_items.build(
-          product_id:        item.product_id,
-          quantity:          item.quantity,
-          unit_price_cents: -item.unit_price_cents.to_i
-        )
-
-        if reversal_item.respond_to?(:description)
-          reversal_item.description = "DEVOLUCIÓN - #{base_desc}"
-        end
-
-        reversal_item.save!(validate: false)
-
-        if (product = item.product)
-          product.update!(stock: product.stock.to_i + item.quantity.to_i)
         end
       end
+
+      redirect_to adjustments_sales_path, notice: "Devolución de tienda ##{original.id} creada y stock regresado."
+
+    else
+      redirect_to adjustments_sales_path, alert: "No se especificó qué venta revertir."
     end
 
-    redirect_to adjustments_sales_path, notice: "Venta negativa creada (DEVOLUCIÓN) y stock regresado para la venta de tienda ##{original.id}."
   rescue => e
-    redirect_to adjustments_sales_path, alert: "No se pudo crear la venta negativa: #{e.message}"
+    redirect_to adjustments_sales_path, alert: "Error crítico: #{e.message}"
   end
 
 
-
   # =====================================================================
-  # ✅ NUEVO MÉTODO: CORTE DEL DÍA (SIN MODIFICAR NADA DEL CONTROLADOR)
+  # CORTE DEL DÍA (ACTUALIZADO)
   # =====================================================================
   def corte
     @date = Time.zone.today
@@ -223,7 +239,6 @@ class SalesController < ApplicationController
     user = current_user
     @user_name = user.name rescue user.email
 
-    # VENTAS DEL DÍA
     sales = Sale.where("COALESCE(occurred_at, created_at) BETWEEN ? AND ?", from, to)
     store_sales = StoreSale.where("COALESCE(occurred_at, created_at) BETWEEN ? AND ?", from, to)
 
@@ -234,11 +249,16 @@ class SalesController < ApplicationController
 
     @ops_count = sales.count + store_sales.count
 
-    @member_cents      = sales.sum(:amount_cents).to_i
-    @store_cents       = store_sales.sum(:total_cents).to_i
-    @adjustments_cents = store_sales.where("total_cents < 0").sum(:total_cents).to_i
+    # Sumas (Rails suma positivos y negativos automáticamente)
+    @member_cents = sales.sum(:amount_cents).to_i
+    @store_cents  = store_sales.sum(:total_cents).to_i
 
-    @total_cents = @member_cents + @store_cents + @adjustments_cents
+    # Calculamos cuánto se perdió en devoluciones para mostrarlo separado (solo informativo)
+    adjustments_store = store_sales.where("total_cents < 0").sum(:total_cents).to_i
+    adjustments_mem   = sales.where("amount_cents < 0").sum(:amount_cents).to_i
+    @adjustments_cents = adjustments_store + adjustments_mem
+
+    @total_cents = @member_cents + @store_cents
 
     # PAGOS
     @by_method = { "cash" => 0, "transfer" => 0 }
@@ -253,11 +273,9 @@ class SalesController < ApplicationController
       @by_method[pm] += ss.total_cents.to_i if @by_method.key?(pm)
     end
 
-    # CHECKINS Y NUEVOS CLIENTES
     @checkins_today = Checkin.where(created_at: from..to).count
     @new_clients_today = Client.where(created_at: from..to).count
   end
-
 
   private
 

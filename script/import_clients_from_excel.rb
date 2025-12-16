@@ -4,7 +4,7 @@ require 'spreadsheet'
 require 'date'
 
 # --- CONFIGURACIÓN CORREGIDA ---
-# Según tu git, el archivo está dentro de 'db/import_files'
+# Apuntamos a 'db/import_files' que es donde git guardó tu archivo según los logs anteriores.
 EXCEL_FILE_PATH = Rails.root.join('db', 'import_files', 'clientes_nuevo.xls').to_s
 
 DEFAULT_USER_ID = 1
@@ -45,7 +45,7 @@ puts "Buscando archivo en: #{EXCEL_FILE_PATH}"
 
 unless File.exist?(EXCEL_FILE_PATH)
   puts "❌ ERROR CRÍTICO: No se encuentra el archivo."
-  puts "Verifica que 'clientes_nuevo.xls' esté dentro de la carpeta 'db/import_files' en tu proyecto."
+  puts "Verifica que 'clientes_nuevo.xls' esté dentro de la carpeta 'db/import_files'."
   exit
 end
 
@@ -57,7 +57,7 @@ rescue => e
   exit
 end
 
-# 1. ENCONTRAR ÍNDICES POR NOMBRE DE ENCABEZADO
+# 1. ENCONTRAR ÍNDICES
 header_row = sheet.row(0)
 idx_nombre = nil
 idx_plan   = nil

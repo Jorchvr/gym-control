@@ -1,25 +1,22 @@
 <%= stylesheet_link_tag "main_panel", media: "all" %>
 
 <div class="header-row">
-  <h2 class="title">Ajustes de tienda (ventas negativas)</h2>
+  <h2 class="title">Ajustes y Devoluciones</h2>
   <div style="display:flex; gap:.6rem; flex-wrap:wrap;">
     <%= link_to "Inicio", authenticated_root_path, class: "btn" %>
-    <%= link_to "Historial", history_path, class: "btn" %>
+    <%= link_to "Volver al Corte", corte_sales_path, class: "btn" %>
   </div>
 </div>
 
 <% if @needs_unlock %>
-  <div class="card" style="max-width:420px;">
+  <div class="card" style="max-width:420px; margin: 0 auto;">
     <h3 class="card-title mb-2">Acceso restringido</h3>
     <p class="text-muted">
-      Para entrar a la sección de ajustes de tienda, ingresa el código de seguridad.
+      Para entrar a la sección de ajustes, ingresa el código de seguridad.
     </p>
 
     <% if flash[:alert].present? %>
       <div class="flash flash--alert" style="margin-top:.5rem;"><%= flash[:alert] %></div>
-    <% end %>
-    <% if flash[:notice].present? %>
-      <div class="flash flash--notice" style="margin-top:.5rem;"><%= flash[:notice] %></div>
     <% end %>
 
     <%= form_with url: unlock_adjustments_sales_path, method: :post, local: true do %>
@@ -28,89 +25,122 @@
         <%= password_field_tag :security_code, nil,
               class: "form-input form-input--xl",
               autocomplete: "off",
-              placeholder: "••••••" %>
-        <small class="text-muted">
-       
-        </small>
+              placeholder: "••••••",
+              style: "text-align:center;" %>
       </div>
 
-      <div class="mt-4" style="display:flex; gap:.75rem;">
-        <%= submit_tag "Desbloquear", class: "btn btn-primary" %>
+      <div class="mt-4">
+        <%= submit_tag "Desbloquear", class: "btn btn-primary", style: "width:100%;" %>
       </div>
     <% end %>
   </div>
 
 <% else %>
-  <div class="card">
-    <h3 class="card-title mb-2">
-      Ventas de tienda del día (<%= @date %>)
+  
+  <% if flash[:alert].present? %>
+    <div class="flash flash--alert" style="margin-bottom:1rem;"><%= flash[:alert] %></div>
+  <% end %>
+  <% if flash[:notice].present? %>
+    <div class="flash flash--notice" style="margin-bottom:1rem;"><%= flash[:notice] %></div>
+  <% end %>
+
+  <p class="text-muted" style="margin-bottom: 1.5rem;">
+    Mostrando transacciones del día: <strong><%= @date.strftime("%d/%m/%Y") %></strong>
+  </p>
+
+  <div class="card" style="margin-bottom: 2rem;">
+    <h3 class="card-title mb-2" style="color: #2563eb;">
+      Membresías y Renovaciones
     </h3>
-
-    <% if flash[:alert].present? %>
-      <div class="flash flash--alert" style="margin-bottom:.5rem;"><%= flash[:alert] %></div>
-    <% end %>
-    <% if flash[:notice].present? %>
-      <div class="flash flash--notice" style="margin-bottom:.5rem;"><%= flash[:notice] %></div>
-    <% end %>
-
-    <% if @store_sales.blank? %>
-      <p class="text-muted">No hay ventas de tienda en el día para ajustar.</p>
+    
+    <% if @membership_sales.blank? %>
+      <p class="text-muted">No hay membresías registradas hoy.</p>
     <% else %>
       <table class="table">
         <thead>
           <tr>
-            <th>Fecha/Hora</th>
+            <th>Hora</th>
+            <th>Cliente</th>
+            <th>Membresía</th>
+            <th>Monto</th>
+            <th>Acción</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @membership_sales.each do |sale| %>
+            <tr style="<%= 'background-color:#fff1f2;' if sale.amount_cents < 0 %>">
+              <td><%= (sale.occurred_at || sale.created_at).strftime("%H:%M") %></td>
+              <td><%= sale.client&.name || "Sin cliente" %></td>
+              <td><%= sale.membership_type %></td>
+              <td style="font-weight:bold; <%= sale.amount_cents < 0 ? 'color:red;' : 'color:green;' %>">
+                <%= number_to_currency(sale.amount_cents.to_f / 100, unit: "$") %>
+              </td>
+              <td>
+                <% if sale.amount_cents > 0 %>
+                  <%= form_with url: reverse_transaction_sales_path, method: :post,
+                      data: { turbo_confirm: "¿Estás seguro de cancelar esta membresía? Se restará el dinero del corte." }, local: true do %>
+                    <%= hidden_field_tag :sale_id, sale.id %>
+                    <%= text_field_tag :reason, nil, placeholder: "Motivo (opc)", class: "form-input", style: "width:110px; display:inline; font-size:0.85rem;" %>
+                    <%= submit_tag "Revertir", class: "btn btn-danger btn-sm" %>
+                  <% end %>
+                <% else %>
+                  <span class="text-muted">Cancelado</span>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    <% end %>
+  </div>
+
+  <div class="card">
+    <h3 class="card-title mb-2" style="color: #9333ea;">
+      Tienda / Productos
+    </h3>
+
+    <% if @store_sales.blank? %>
+      <p class="text-muted">No hay ventas de tienda hoy.</p>
+    <% else %>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Hora</th>
             <th>Usuario</th>
-            <th>ID</th>
             <th>Método</th>
             <th>Total</th>
-            <th>Acciones</th>
+            <th>Acción</th>
           </tr>
         </thead>
         <tbody>
           <% @store_sales.each do |ss| %>
-            <tr>
-              <td><%= (ss.occurred_at || ss.created_at)&.in_time_zone&.strftime("%Y-%m-%d %H:%M") %></td>
+            <tr style="<%= 'background-color:#fff1f2;' if ss.total_cents < 0 %>">
+              <td><%= (ss.occurred_at || ss.created_at).strftime("%H:%M") %></td>
               <td><%= ss.user&.name || ss.user&.email %></td>
-              <td>#<%= ss.id %></td>
               <td><%= ss.payment_method %></td>
-              <td><%= number_to_currency(ss.total_cents.to_i / 100.0, unit: "MXN $", precision: 2) %></td>
+              <td style="font-weight:bold; <%= ss.total_cents < 0 ? 'color:red;' : 'color:green;' %>">
+                <%= number_to_currency(ss.total_cents.to_f / 100, unit: "$") %>
+              </td>
               <td>
-                <%= form_with url: reverse_transaction_sales_path, method: :post,
-                              data: { turbo_confirm: "¿Crear una venta negativa para anular la venta de tienda ##{ss.id}?" },
-                              local: true do %>
-                  <%= hidden_field_tag :store_sale_id, ss.id %>
-                  <%= text_field_tag :reason, nil,
-                        placeholder: "Motivo (opcional)",
-                        class: "form-input",
-                        style: "max-width: 220px; display:inline-block; margin-right:.5rem;" %>
-                  <%= submit_tag "Venta negativa", class: "btn btn-danger" %>
+                <% if ss.total_cents > 0 %>
+                  <%= form_with url: reverse_transaction_sales_path, method: :post,
+                      data: { turbo_confirm: "¿Estás seguro de devolver esta venta de tienda? El stock se regresará." }, local: true do %>
+                    <%= hidden_field_tag :store_sale_id, ss.id %>
+                    <%= text_field_tag :reason, nil, placeholder: "Motivo (opc)", class: "form-input", style: "width:110px; display:inline; font-size:0.85rem;" %>
+                    <%= submit_tag "Revertir", class: "btn btn-danger btn-sm" %>
+                  <% end %>
+                <% else %>
+                  <span class="text-muted">Cancelado</span>
                 <% end %>
               </td>
             </tr>
-
             <% if ss.store_sale_items.any? %>
               <tr>
-                <td colspan="6">
-                  <div class="subtable">
-                    <strong>Items:</strong>
-                    <ul>
-                      <% ss.store_sale_items.each do |it| %>
-                        <% item_name =
-                             if it.respond_to?(:description) && it.description.present?
-                               it.description
-                             elsif it.product.present?
-                               it.product.name
-                             else
-                               "Producto ##{it.id}"
-                             end %>
-                        <li>
-                          <%= item_name %> x<%= it.quantity %> —
-                          <%= number_to_currency(it.unit_price_cents.to_i / 100.0, unit: "MXN $", precision: 2) %> (c/u)
-                        </li>
-                      <% end %>
-                    </ul>
-                  </div>
+                <td colspan="5" style="padding-top:0; padding-bottom:1rem; border:none;">
+                  <small class="text-muted" style="margin-left:1rem; display:block;">
+                    <strong>Items:</strong> 
+                    <%= ss.store_sale_items.map { |i| "#{i.quantity}x #{i.product&.name}" }.join(", ") %>
+                  </small>
                 </td>
               </tr>
             <% end %>
