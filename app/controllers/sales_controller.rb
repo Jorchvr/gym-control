@@ -77,7 +77,7 @@ class SalesController < ApplicationController
   end
 
   def show
-    # Tu lógica de show si la tienes, o dejar vacío si no se usa
+    # Tu lógica de show si la tienes
   end
 
   # =====================================================
@@ -105,24 +105,16 @@ class SalesController < ApplicationController
       membership_scope = membership_scope.where(user_id: current_user.id)
     end
 
-    # Ordenamos por ID descendente para ver lo más reciente arriba
     @store_sales = store_scope.includes(:user, store_sale_items: :product).order(id: :desc)
     @membership_sales = membership_scope.includes(:user, :client).order(id: :desc)
   end
 
   # POST /sales/unlock_adjustments
-  # Código secreto: 010101
   def unlock_adjustments
     code     = params[:security_code].to_s.strip
     expected = "010101"
 
-    ok =
-      code.present? &&
-      expected.present? &&
-      code.length == expected.length &&
-      ActiveSupport::SecurityUtils.secure_compare(code, expected)
-
-    if ok
+    if code == expected || ActiveSupport::SecurityUtils.secure_compare(code, expected)
       session[:store_adjustments_unlocked] = true
       redirect_to adjustments_sales_path, notice: "Sección de ajustes desbloqueada."
     else
@@ -140,7 +132,7 @@ class SalesController < ApplicationController
 
     reason = params[:reason].to_s.strip
 
-    # --- CASO A: REVERTIR MEMBRESÍA ---
+    # --- CASO A: REVERTIR MEMBRESÍA (Sale) ---
     if params[:sale_id].present?
       original = Sale.find_by(id: params[:sale_id])
 
@@ -154,27 +146,26 @@ class SalesController < ApplicationController
         return
       end
 
-      # Crear la venta negativa de membresía
+      # Crear la venta negativa
       reversal = Sale.new(
         user:           current_user,
         client_id:      original.client_id,
         payment_method: original.payment_method,
-        amount_cents:   -original.amount_cents.to_i, # Negativo
+        amount_cents:   -original.amount_cents.to_i,
         membership_type: "DEVOLUCIÓN - #{original.membership_type}",
         occurred_at:    Time.current
       )
 
-      # Evitar que la devolución active días de acceso (si usas esa columna)
+      # Evitar que active días de acceso
       reversal.duration_days = 0 if reversal.respond_to?(:duration_days=)
 
-      # ✅ CORREGIDO: Usamos validate: false
-      if reversal.save(validate: false)
-        redirect_to adjustments_sales_path, notice: "Devolución de membresía ##{original.id} registrada."
-      else
-        redirect_to adjustments_sales_path, alert: "Error al guardar devolución."
-      end
+      # ✅ CAMBIO CRÍTICO AQUÍ: Usamos save! (con bang) para forzar el guardado
+      # Si falla, saltará al rescue de abajo y nos dirá exactamente por qué.
+      reversal.save!(validate: false)
 
-    # --- CASO B: REVERTIR TIENDA ---
+      redirect_to adjustments_sales_path, notice: "Devolución de membresía ##{original.id} registrada."
+
+    # --- CASO B: REVERTIR TIENDA (StoreSale) ---
     elsif params[:store_sale_id].present?
       original = StoreSale.includes(store_sale_items: :product).find_by(id: params[:store_sale_id])
 
@@ -203,11 +194,9 @@ class SalesController < ApplicationController
         end
 
         reversal = StoreSale.new(attrs)
-        # Guardamos la venta padre sin validar
         reversal.save!(validate: false)
 
         original.store_sale_items.find_each do |item|
-          # ✅ CORREGIDO: Construimos el item y lo guardamos sin validar
           rev_item = reversal.store_sale_items.build(
             product_id:       item.product_id,
             quantity:         item.quantity,
@@ -228,12 +217,12 @@ class SalesController < ApplicationController
     end
 
   rescue => e
+    # Este rescue atrapará cualquier error de base de datos y te lo mostrará en pantalla
     redirect_to adjustments_sales_path, alert: "Error crítico: #{e.message}"
   end
 
-
   # =====================================================================
-  # CORTE DEL DÍA (ACTUALIZADO)
+  # CORTE DEL DÍA
   # =====================================================================
   def corte
     @date = Time.zone.today
@@ -252,26 +241,21 @@ class SalesController < ApplicationController
     end
 
     @ops_count = sales.count + store_sales.count
-
-    # Sumas (Rails suma positivos y negativos automáticamente)
     @member_cents = sales.sum(:amount_cents).to_i
     @store_cents  = store_sales.sum(:total_cents).to_i
 
-    # Calculamos cuánto se perdió en devoluciones para mostrarlo separado (solo informativo)
+    # Cálculo informativo de devoluciones
     adjustments_store = store_sales.where("total_cents < 0").sum(:total_cents).to_i
     adjustments_mem   = sales.where("amount_cents < 0").sum(:amount_cents).to_i
     @adjustments_cents = adjustments_store + adjustments_mem
 
     @total_cents = @member_cents + @store_cents
 
-    # PAGOS
     @by_method = { "cash" => 0, "transfer" => 0 }
-
     sales.each do |s|
       pm = s.payment_method.to_s
       @by_method[pm] += s.amount_cents.to_i if @by_method.key?(pm)
     end
-
     store_sales.each do |ss|
       pm = ss.payment_method.to_s
       @by_method[pm] += ss.total_cents.to_i if @by_method.key?(pm)
