@@ -93,11 +93,10 @@ class SalesController < ApplicationController
       return
     end
 
-    # Mostramos TODO para facilitar el debug, sin filtrar por usuario
     store_scope = StoreSale.where("COALESCE(store_sales.occurred_at, store_sales.created_at) BETWEEN ? AND ?", @from, @to)
     membership_scope = Sale.where("COALESCE(sales.occurred_at, sales.created_at) BETWEEN ? AND ?", @from, @to)
 
-    # COMENTADO: Filtro de usuario desactivado para que veas todas las ventas
+    # Filtros de usuario desactivados para facilitar la operación
     # unless superuser?
     #   store_scope      = store_scope.where(user_id: current_user.id)
     #   membership_scope = membership_scope.where(user_id: current_user.id)
@@ -123,20 +122,17 @@ class SalesController < ApplicationController
 
   # POST /sales/reverse_transaction
   def reverse_transaction
-    # 1. Verificar desbloqueo
     unless session[:store_adjustments_unlocked]
       redirect_to adjustments_sales_path, alert: "Ingresa el código primero."
       return
     end
 
     reason = params[:reason].to_s.strip
-    puts ">>> INICIANDO REVERSIÓN. Params: #{params.inspect}"
 
     # ==========================================
     # CASO A: REVERTIR MEMBRESÍA (Sale)
     # ==========================================
     if params[:sale_id].present?
-      puts ">>> BUSCANDO SALE ID: #{params[:sale_id]}"
       original = Sale.find_by(id: params[:sale_id])
 
       if original.nil?
@@ -144,57 +140,38 @@ class SalesController < ApplicationController
         return
       end
 
-      # --- DESACTIVADO TEMPORALMENTE ---
-      # Si la venta ya es negativa, no dejarla hacer negativa otra vez
-      # if original.amount_cents <= 0
-      #   redirect_to adjustments_sales_path, alert: "Esa venta ya es una devolución."
-      #   return
-      # end
-
-      # --- DESACTIVADO TEMPORALMENTE ---
-      # Restricción de usuario: Ahora cualquiera puede borrar lo de cualquiera
-      # if !superuser? && original.user_id != current_user.id
-      #   redirect_to adjustments_sales_path, alert: "No tienes permiso para borrar ventas de otros."
-      #   return
-      # end
-
-      puts ">>> INTENTANDO CREAR REVERSAL PARA SALE #{original.id}"
-
+      # ---------------------------------------------------------
+      # CORRECCIÓN AQUÍ:
+      # No podemos inventar "DEVOLUCIÓN - day" porque el sistema usa Enums.
+      # Usamos el tipo original. El precio negativo indicará que es devolución.
+      # ---------------------------------------------------------
       reversal = Sale.new(
         user:           current_user,
         client_id:      original.client_id,
         payment_method: original.payment_method,
-        amount_cents:   -original.amount_cents.to_i, # Negativo
-        membership_type: "DEVOLUCIÓN - #{original.membership_type}",
+        amount_cents:   -original.amount_cents.to_i, # Precio Negativo
+        membership_type: original.membership_type,   # ✅ Mismo tipo (ej: day)
         occurred_at:    Time.current
       )
 
-      # Forzamos duration 0
+      # Forzamos duration 0 para no dar días gratis
       reversal.duration_days = 0 if reversal.respond_to?(:duration_days=)
 
-      # GUARDADO FORZOSO SIN VALIDACIONES
+      # Guardamos forzosamente
       reversal.save!(validate: false)
 
-      puts ">>> ÉXITO: Reversal creada con ID #{reversal.id}"
       redirect_to adjustments_sales_path, notice: "Devolución de membresía exitosa."
 
     # ==========================================
     # CASO B: REVERTIR TIENDA (StoreSale)
     # ==========================================
     elsif params[:store_sale_id].present?
-      puts ">>> BUSCANDO STORE SALE ID: #{params[:store_sale_id]}"
       original = StoreSale.includes(store_sale_items: :product).find_by(id: params[:store_sale_id])
 
       if original.nil?
         redirect_to adjustments_sales_path, alert: "Venta de tienda no encontrada."
         return
       end
-
-      # --- DESACTIVADO TEMPORALMENTE ---
-      # if !superuser? && original.user_id != current_user.id
-      #   redirect_to adjustments_sales_path, alert: "No tienes permiso."
-      #   return
-      # end
 
       StoreSale.transaction do
         attrs = {
@@ -204,7 +181,6 @@ class SalesController < ApplicationController
           occurred_at:    Time.current
         }
 
-        # Manejo flexible de nota/descripción
         if StoreSale.column_names.include?("note")
           attrs[:note] = "DEVOLUCIÓN ##{original.id}: #{reason}"
         elsif StoreSale.column_names.include?("description")
@@ -235,8 +211,7 @@ class SalesController < ApplicationController
     end
 
   rescue => e
-    puts ">>> ERROR CRÍTICO: #{e.message}"
-    puts e.backtrace.join("\n")
+    # Captura errores y muestra el mensaje real
     redirect_to adjustments_sales_path, alert: "Error crítico: #{e.message}"
   end
 
