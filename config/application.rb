@@ -17,22 +17,14 @@ module GymControl
     config.autoload_lib(ignore: %w[assets tasks])
 
     # Configuration for the application, engines, and railties goes here.
-    #
-    # These settings can be overridden in specific environments using the files
-    # in config/environments, which are processed later.
 
     # =========================================================
     # ✅ CONFIGURACIÓN DE ZONA HORARIA (MONTERREY / MÉXICO)
     # =========================================================
     config.time_zone = "Mexico City"
-
-    # Esto asegura que Rails guarde en la BD en formato universal (UTC)
-    # pero te muestre la hora correcta en tu pantalla automáticamente.
     config.active_record.default_timezone = :utc
 
-    # Opcional: Configurar idioma predeterminado a Español
-    config.i18n.default_locale = :es
-
-    # config.eager_load_paths << Rails.root.join("extras")
+    # ❌ COMENTAMOS ESTO PARA EVITAR EL ERROR DE IDIOMA
+    # config.i18n.default_locale = :es
   end
 end
