@@ -340,3 +340,46 @@ html, body, #app, .app, .page, .content, .split-container, .main, .container {
   outline: none;
   box-sizing: border-box;
 }
+/* --- AGREGAR AL FINAL DE main_panel.css --- */
+
+/* Estilos para páginas centradas (como Gastos) */
+.centered-layout {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  width: 100%;
+  background: radial-gradient(1200px 800px at 10% -10%, rgba(239, 68, 68, .10), transparent 60%),
+              linear-gradient(180deg, #0f1115, #0b0d12); /* Fondo oscuro igual al dashboard */
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+.card-center {
+  background: rgba(24, 26, 31, 0.85); /* Fondo tarjeta oscuro */
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 2.5rem;
+  width: 100%;
+  max-width: 480px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.input-money {
+  font-size: 1.5rem !important;
+  color: #ef4444 !important; /* Rojo neón */
+  font-weight: 800 !important;
+  padding-left: 2rem !important;
+  height: 3.5rem !important;
+}
+
+.money-symbol {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #98a2b3;
+  font-weight: bold;
+  font-size: 1.2rem;
+}
