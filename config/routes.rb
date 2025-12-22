@@ -1,4 +1,3 @@
-# config/routes.rb
 Rails.application.routes.draw do
   # ================== Devise (Usuarios) ==================
   devise_for :users
@@ -15,7 +14,7 @@ Rails.application.routes.draw do
   # ================== Ventas (registro/consulta/corte/ajustes) ==================
   resources :sales, only: [ :index, :show ] do
     collection do
-      get  :corte               # <--- ✅ ESTA ERA LA RUTA QUE FALTABA
+      get  :corte
       get  :adjustments
       post :unlock_adjustments
       post :reverse_transaction
@@ -24,6 +23,9 @@ Rails.application.routes.draw do
 
   # ================== Productos (Backoffice CRUD) ==================
   resources :products
+
+  # ================== Pago de Servicios (NUEVO) ==================
+  resources :expenses, only: [ :new, :create ]
 
   # ================== Carrito / Tienda ==================
   resource :cart, only: [ :show ], controller: :cart do
@@ -36,7 +38,7 @@ Rails.application.routes.draw do
 
   # ================== Reports ==================
   get "reports/daily_export",        to: "reports#daily_export",        as: :reports_daily_export   # CSV
-  get "reports/daily_export_excel",  to: "reports#daily_export_excel",  as: :reports_daily_export_excel # XLSX (2 hojas)
+  get "reports/daily_export_excel",  to: "reports#daily_export_excel",  as: :reports_daily_export_excel # XLSX
   get "history",                     to: "reports#history",             as: :history
   get "closeout",                    to: "reports#closeout",            as: :closeout
 
@@ -55,8 +57,6 @@ Rails.application.routes.draw do
   end
 
   # ================== Cobrar Mensualidad ==================
-  # GET  /memberships → pantalla de búsqueda/cobro
-  # POST /memberships/checkout → procesa el cobro (incluye precio personalizado)
   get  "memberships",          to: "memberships#new",      as: :memberships
   post "memberships/checkout", to: "memberships#checkout", as: :memberships_checkout
 end

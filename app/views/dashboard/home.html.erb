@@ -1,7 +1,6 @@
 <%= stylesheet_link_tag "main_panel", media: "all", "data-turbo-track": "reload" %>
 
 <div class="split-container">
-  <!-- ===================== Panel izquierdo: Gym Control ===================== -->
   <div class="panel gym-panel">
     <div class="header-row">
       <h2 class="title">Gym Control</h2>
@@ -18,7 +17,6 @@
                     class: "btn btn-danger" %>
     </div>
 
-    <!-- 🔎 Buscador de cliente -->
     <div class="search-card card" style="margin-top:1rem;">
       <%= form_with url: authenticated_root_path, method: :get, local: true do |f| %>
         <div class="search-form" style="display:flex; gap:.75rem; align-items:center; flex-wrap:wrap;">
@@ -39,7 +37,6 @@
         <% active  = @found_client.next_payment_on.present? && @found_client.next_payment_on >= Date.current %>
 
         <div class="card result-card">
-          <!-- Columna izquierda: foto + datos -->
           <div class="result-left">
             <div class="result-photo">
               <%= client_photo_tag(@found_client, size: 160, classes: "client-photo--xl") %>
@@ -67,7 +64,6 @@
             </div>
           </div>
 
-          <!-- Columna derecha: panel de estado -->
           <div class="result-right">
             <% if overdue %>
               <div class="status-panel status-panel--debt">
@@ -108,21 +104,25 @@
       <% end %>
     <% end %>
 
-    <!-- 📊 Métricas -->
     <div class="grid-2 mt-6">
       <div class="card">
-        <h3 class="card-title mb-2">Ventas de Hoy</h3>
+        <h3 class="card-title mb-2">Caja de Hoy (Neto)</h3>
         <p class="metric-big">
           $<%= (@today_total_cents.to_i / 100.0).round(2) %>
         </p>
-        <p class="text-muted"><%= @today_sales_count.to_i %> operaciones</p>
+        <p class="text-muted">
+           <%= @today_sales_count.to_i %> ventas
+           <% if defined?(@today_expenses_cents) && @today_expenses_cents > 0 %>
+             <span style="color: #ef4444; font-size: 0.9em;">(-$<%= (@today_expenses_cents/100.0).round(2) %> gastos)</span>
+           <% end %>
+        </p>
 
         <div class="mt-6" style="display:flex; gap:.75rem; flex-wrap:wrap;">
           <%= link_to "Ajustes / venta negativa", adjustments_sales_path, class: "btn btn-danger" %>
           <%= link_to "Historial (por día)", history_path, class: "btn" %>
           <%= link_to "Corte del día", closeout_path, class: "btn" %>
           <% if is_superuser? %>
-            <%= link_to "Descargar Excel del día", reports_daily_export_path, class: "btn" %>
+            <%= link_to "Descargar Excel del día", reports_daily_export_excel_path, class: "btn" %>
           <% end %>
         </div>
       </div>
@@ -134,16 +134,17 @@
       </div>
     </div>
 
-    <!-- ⚙️ Acciones rápidas -->
     <div class="quick-actions mt-6" style="display:flex; gap:.75rem; flex-wrap:wrap;">
       <%= link_to "Clientes", clients_path, class: "btn" %>
       <%= link_to "Registrar Cliente", new_client_path, class: "btn" %>
       <%= link_to "Cobrar mensualidad", memberships_path, class: "btn btn-accent" %>
+      
       <%= link_to "Clases (Griselle)", griselle_cart_path, class: "btn btn-accent" %>
+
+      <%= link_to "Pago Servicios", new_expense_path, class: "btn btn-danger" %>
     </div>
   </div>
 
-  <!-- ===================== Panel derecho: Tienda ===================== -->
   <div class="panel shop-panel">
     <div class="header-row">
       <h2 class="title">Tienda Online</h2>
@@ -155,9 +156,7 @@
       </div>
     </div>
 
-    <!-- 🔥 Nuevo layout: mitad superior (cuadros) + mitad inferior (carrito) -->
     <div class="shop-body-split">
-      <!-- 🔼 Mitad superior: grid 5x2 de cuadrados -->
       <div class="shop-top">
         <div class="card product-grid-card">
           <h3 class="card-title mb-2">Productos rápidos</h3>
@@ -165,7 +164,7 @@
 
           <div class="product-grid">
 
-            <% products_for_grid = @products %> <!-- 🔥 YA NO LIMITA A 10 -->
+            <% products_for_grid = @products %>
 
             <% products_for_grid.each do |p| %>
               <%= button_to add_cart_path,
@@ -191,7 +190,6 @@
         </div>
       </div>
 
-      <!-- 🔽 Mitad inferior: carrito -->
       <div class="shop-bottom">
         <div class="mini-cart mini-cart--short">
           <div class="header-row">

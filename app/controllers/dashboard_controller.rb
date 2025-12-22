@@ -1,4 +1,3 @@
-# app/controllers/dashboard_controller.rb
 class DashboardController < ApplicationController
   before_action :authenticate_user!
 
@@ -33,23 +32,32 @@ class DashboardController < ApplicationController
     @today_sales_count = 0
     @today_total_cents = 0
 
+    # 1. Sumar Tienda
     if defined?(StoreSale)
       store_sales_today = StoreSale.where(user_id: current_user.id, occurred_at: day_range)
       @today_sales_count += store_sales_today.count
       @today_total_cents += store_sales_today.sum(:total_cents).to_i
     end
 
+    # 2. Sumar Membresías
     if defined?(Sale)
       membership_sales_today = Sale.where(user_id: current_user.id, occurred_at: day_range)
       @today_sales_count += membership_sales_today.count
       @today_total_cents += membership_sales_today.sum(:amount_cents).to_i
     end
+
+    # 3. RESTAR Gastos/Servicios (NUEVO)
+    if defined?(Expense)
+      expenses_today = Expense.where(user_id: current_user.id, occurred_at: day_range)
+      @today_expenses_cents = expenses_today.sum(:amount_cents).to_i
+
+      # Restamos lo gastado del total mostrado en el dashboard
+      @today_total_cents -= @today_expenses_cents
+    end
   end
 
   private
 
-  # Marca un check-in del cliente SOLO una vez por día.
-  # Importante: tu tabla check_ins requiere user_id NOT NULL, así que pasamos current_user.
   def ensure_check_in!(client)
     return unless defined?(CheckIn)
     today = Time.zone.today.all_day
