@@ -1,6 +1,7 @@
 # app/controllers/griselle_cart_controller.rb
 class GriselleCartController < ApplicationController
   before_action :authenticate_user!
+  # No hay restricción de superusuario, accesible para todos.
 
   # Helpers simples para normalizar el carrito en sesión
   def current_cart
@@ -107,51 +108,64 @@ class GriselleCartController < ApplicationController
 
     payment_method = params[:payment_method].in?(%w[cash transfer]) ? params[:payment_method] : "cash"
 
-    total_cents = 0
-    ss = StoreSale.create!(
-      user: current_user,
-      payment_method: payment_method,
-      total_cents: 0,           # se actualiza al final
-      occurred_at: Time.current
-    )
-
-    # Producto genérico para servicios de Griselle (sin SKU, sin tocar stock)
+    # --- FIX STOCK INFINITO ---
+    # Buscamos o creamos el producto genérico y aseguramos que tenga mucho stock
     generic_service = Product.find_or_create_by!(name: "Servicio Griselle") do |p|
       p.price_cents = 0
-      p.stock = 0
+      p.stock = 1000000 # Stock inicial alto
     end
 
-    cart.each do |l|
-      qty  = l[:qty].to_i
-      unit = l[:price_cents].to_i
-      next if qty <= 0 || unit <= 0
+    # Si ya existía pero tenía poco stock (o 0), lo rellenamos
+    if generic_service.stock < 5000
+      generic_service.update_columns(stock: 1000000)
+    end
+    # --------------------------
 
-      case l[:type]
-      when "custom"
-        ss.store_sale_items.create!(
-          product_id:       generic_service.id,
-          quantity:         qty,
-          unit_price_cents: unit,
-          description:      l[:name] # ← aquí guardamos la descripción que escribes
-        )
-        # No alteramos stock en servicios
+    total_cents = 0
 
-      when "product"
-        product = Product.find_by(id: l[:product_id])
-        next unless product
-        ss.store_sale_items.create!(
-          product_id:       product.id,
-          quantity:         qty,
-          unit_price_cents: unit
-        )
-        # Si NO quieres tocar stock de productos, deja comentada la línea siguiente
-        # product.update!(stock: [product.stock.to_i - qty, 0].max)
+    # Usamos transacción para revertir si algo falla
+    ActiveRecord::Base.transaction do
+      ss = StoreSale.create!(
+        user: current_user,
+        payment_method: payment_method,
+        total_cents: 0,           # se actualiza al final
+        occurred_at: Time.current
+      )
+
+      cart.each do |l|
+        qty  = l[:qty].to_i
+        unit = l[:price_cents].to_i
+        next if qty <= 0 || unit <= 0
+
+        case l[:type]
+        when "custom"
+          ss.store_sale_items.create!(
+            product_id:       generic_service.id,
+            quantity:         qty,
+            unit_price_cents: unit,
+            description:      l[:name]
+          )
+          # Descontamos del stock infinito para satisfacer la validación del modelo
+          generic_service.decrement!(:stock, qty)
+
+        when "product"
+          product = Product.find_by(id: l[:product_id])
+          next unless product
+
+          ss.store_sale_items.create!(
+            product_id:       product.id,
+            quantity:         qty,
+            unit_price_cents: unit
+          )
+          # Descontamos stock real del producto físico
+          product.decrement!(:stock, qty)
+        end
+
+        total_cents += unit * qty
       end
 
-      total_cents += unit * qty
+      ss.update!(total_cents: total_cents)
     end
-
-    ss.update!(total_cents: total_cents)
 
     save_cart!([])
     redirect_to griselle_cart_path, notice: "Venta registrada."
