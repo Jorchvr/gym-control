@@ -7,7 +7,7 @@ class ReportsController < ApplicationController
   before_action :require_superuser!, only: [ :daily_export, :history, :daily_export_excel ]
 
   # ==========================
-  # HISTORIAL (BLINDADO)
+  # HISTORIAL
   # ==========================
   def history
     @date  = params[:date].present? ? (Date.parse(params[:date]) rescue Time.zone.today) : Time.zone.today
@@ -21,10 +21,10 @@ class ReportsController < ApplicationController
     @check_ins = CheckIn.where("COALESCE(check_ins.occurred_at, check_ins.created_at) BETWEEN ? AND ?", from, to).includes(:client, :user)
     @new_clients = Client.where(created_at: from..to).includes(:user)
 
-    # CÁLCULOS SEGUROS
+    # Cálculos seguros
     sales_cents = @sales.sum(:amount_cents).to_i
 
-    # FIX: Calcular tienda sumando items, no encabezados (para evitar errores de sincronización)
+    # Calcular tienda sumando items reales
     store_items = @store_sales.flat_map(&:store_sale_items)
     store_cents = store_items.sum { |i| i.unit_price_cents.to_i * i.quantity.to_i }
 
@@ -32,17 +32,17 @@ class ReportsController < ApplicationController
     expenses_cents = @expenses.sum(:amount_cents).to_i
     @money_total_cents = gross_income - expenses_cents
 
+    # Métodos de pago
     cash_sales = @sales.where(payment_method: :cash).sum(:amount_cents).to_i
-    # Calcular efectivo de tienda basado en items reales
+
     cash_store_sales = @store_sales.select { |s| s.payment_method == "cash" }
     cash_store_items = cash_store_sales.flat_map(&:store_sale_items)
     cash_store = cash_store_items.sum { |i| i.unit_price_cents.to_i * i.quantity.to_i }
 
     cash_net   = (cash_sales + cash_store) - expenses_cents
 
-    # Transferencia
     transfer_sales = @sales.where(payment_method: :transfer).sum(:amount_cents).to_i
-    transfer_net = (sales_cents + store_cents) - (cash_sales + cash_store) # Lo que sobra es transfer
+    transfer_net = (sales_cents + store_cents) - (cash_sales + cash_store)
 
     @money_by_method = { "cash" => cash_net, "transfer" => transfer_net }
 
@@ -58,7 +58,7 @@ class ReportsController < ApplicationController
   end
 
   # ==========================
-  # CORTE DEL DÍA (TICKET) - FIX MATEMÁTICO 100%
+  # CORTE DEL DÍA (TICKET)
   # ==========================
   def closeout
     date = Time.zone.today
@@ -76,46 +76,40 @@ class ReportsController < ApplicationController
     expenses = Expense.where(user_id: current_user.id)
                       .where("occurred_at BETWEEN ? AND ?", from, to)
 
-    # 2. CÁLCULOS BASADOS EN ITEMS (Esto arregla tu error de $68)
-    # En lugar de sumar el total de la venta, sumamos los productos uno por uno.
+    # 2. CÁLCULOS (Arreglados para sumar items reales)
 
     # A) Ingresos Membresía
     @member_cents = sales.where("amount_cents >= 0").sum(:amount_cents).to_i
     neg_member_cents = sales.where("amount_cents < 0").sum(:amount_cents).to_i
 
-    # B) Ingresos Tienda (Calculado desde ITEMS)
+    # B) Ingresos Tienda (Calculado item por item para evitar errores de BD)
     all_store_items = store_sales.flat_map { |ss| ss.store_sale_items }
 
-    # Separamos items positivos (ventas) de negativos (devoluciones)
     @store_cents = all_store_items.select { |i| i.unit_price_cents.to_i >= 0 }
                                   .sum { |i| i.unit_price_cents.to_i * i.quantity.to_i }
 
     neg_store_cents = all_store_items.select { |i| i.unit_price_cents.to_i < 0 }
                                      .sum { |i| i.unit_price_cents.to_i * i.quantity.to_i }
 
-    # C) Ajustes y Gastos
+    # C) Totales
     @adjustments_cents = neg_member_cents + neg_store_cents
     @expenses_cents = expenses.sum(:amount_cents).to_i
 
-    # D) TOTAL FINAL EXACTO
     @total_cents = (@member_cents + @store_cents + @adjustments_cents) - @expenses_cents
     @ops_count   = sales.count + store_sales.count + expenses.count
 
-    # E) Desglose Métodos de Pago
-    # Efectivo Membresía
+    # D) Métodos de Pago
     cash_mem = sales.where(payment_method: :cash).sum(:amount_cents).to_i
-    # Efectivo Tienda (Desde items)
+
     cash_store_sales = store_sales.select { |s| s.payment_method == "cash" }
     cash_store_items = cash_store_sales.flat_map(&:store_sale_items)
     cash_store = cash_store_items.sum { |i| i.unit_price_cents.to_i * i.quantity.to_i }
 
     total_cash_gross = cash_mem + cash_store
-
-    # Transferencias (El resto)
     total_transfer = (@member_cents + @store_cents + @adjustments_cents) - total_cash_gross
 
     @by_method = {
-      "cash"     => total_cash_gross - @expenses_cents, # Restamos gastos al efectivo
+      "cash"     => total_cash_gross - @expenses_cents,
       "transfer" => total_transfer
     }
 
@@ -124,7 +118,7 @@ class ReportsController < ApplicationController
     @new_clients_today = Client.where(created_at: from..to).count
     @checkins_today    = CheckIn.where("COALESCE(check_ins.occurred_at, check_ins.created_at) BETWEEN ? AND ?", from, to).count
 
-    # 3. Datos visuales
+    # 3. Datos visuales de productos
     @sold_by_product = all_store_items.group_by(&:product_id).map do |pid, arr|
       product = arr.first&.product
       {
@@ -134,6 +128,34 @@ class ReportsController < ApplicationController
         stock_after: product&.stock.to_i
       }
     end.sort_by { |h| -h[:sold_qty] }
+
+    # 4. Transacciones (ESTO ERA LO QUE FALTABA)
+    # Sin esto, la parte de abajo del ticket salía vacía.
+    @transactions = []
+    sales.each do |s|
+      @transactions << {
+        at: (s.occurred_at || s.created_at),
+        label: "Membresía #{s.membership_type}",
+        amount_cents: s.amount_cents.to_i
+      }
+    end
+    store_sales.each do |ss|
+      # Calculamos el total real de esta venta específica
+      real_total = ss.store_sale_items.sum { |i| i.unit_price_cents.to_i * i.quantity.to_i }
+      @transactions << {
+        at: (ss.occurred_at || ss.created_at),
+        label: "Tienda ##{ss.id}",
+        amount_cents: real_total
+      }
+    end
+    expenses.each do |ex|
+      @transactions << {
+        at: ex.occurred_at,
+        label: "GASTO: #{ex.description}",
+        amount_cents: -ex.amount_cents.to_i
+      }
+    end
+    @transactions.sort_by! { |h| h[:at] }
   end
 
   def daily_export; head :ok; end
