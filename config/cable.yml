@@ -1,14 +1,12 @@
-# config/cable.yml
 development:
   adapter: async
 
 test:
   adapter: test
 
-# 🛠️ CAMBIO CLAVE:
-# Usamos "async" para que los mensajes viajen por la Memoria RAM.
-# Esto evita el Error 500 porque no intenta escribir en la base de datos.
+# 🛠️ CONFIGURACIÓN PARA RENDER
+# Usamos "async" para que los mensajes de ActionCable (Websockets)
+# se manejen en la memoria del proceso.
 production:
   adapter: async
-  url: <%= ENV.fetch("REDIS_URL") { "redis://localhost:6379/1" } %>
-  channel_prefix: powergym_production
+  # No necesitamos URL ni channel_prefix cuando usamos async
