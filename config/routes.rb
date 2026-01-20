@@ -1,17 +1,47 @@
 Rails.application.routes.draw do
-  # ================== Devise (Usuarios) ==================
-  devise_for :users
+  # 🔌 1. HABILITAR WEBSOCKETS (Se queda por si acaso)
+  mount ActionCable.server => "/cable"
 
-  # ================== Root según sesión ==================
+  # CONFIGURACIÓN DE USUARIOS (Devise)
+  devise_for :users
   devise_scope :user do
     unauthenticated { root to: "devise/sessions#new" }
     authenticated   { root to: "dashboard#home", as: :authenticated_root }
   end
 
-  # ================== Clientes (CRUD membresías) ==================
-  resources :clients
+  # =========================================================
+  # 👥 CLIENTES Y HUELLA (El corazón del sistema)
+  # =========================================================
+  resources :clients do
+    member do
+      post :start_registration
+      post :attach_last_fingerprint
+      get  :fingerprint_status
+      get  :card_view   # <--- VITAL: Para pintar la tarjeta
+    end
 
-  # ================== Ventas (registro/consulta/corte/ajustes) ==================
+    # Acciones generales
+    collection do
+      # 🚨 RUTA CRÍTICA: C# manda aquí la señal
+      post :check_entry
+
+      # 📥 C# descarga huellas aquí
+      get :fingerprints_data
+
+      # Botón "Encender Lector"
+      post :start_scanner
+
+      # 📡 RUTA DE RASTREO: El Home pregunta aquí si hay alguien nuevo
+      get :check_latest
+
+      # (Compatibilidad)
+      get  :last_entry
+    end
+  end
+
+  # =========================================================
+  # 💰 VENTAS Y CAJA
+  # =========================================================
   resources :sales, only: [ :index, :show ] do
     collection do
       get  :corte
@@ -21,33 +51,21 @@ Rails.application.routes.draw do
     end
   end
 
-  # ================== Productos (Backoffice CRUD) ==================
   resources :products
-
-  # ================== Pago de Servicios (NUEVO) ==================
   resources :expenses, only: [ :new, :create, :destroy ]
 
-  # ================== Carrito / Tienda ==================
+  # =========================================================
+  # 🛒 CARRITO DE COMPRAS
+  # =========================================================
   resource :cart, only: [ :show ], controller: :cart do
-    post :add        # params: product_id
-    post :increment  # params: product_id
-    post :decrement  # params: product_id
-    post :remove     # params: product_id
-    post :checkout   # params: payment_method (cash|transfer)
+    post :add
+    post :increment
+    post :decrement
+    post :remove
+    post :checkout
   end
 
-  # ================== Reports ==================
-  get "reports/daily_export",        to: "reports#daily_export",        as: :reports_daily_export   # CSV
-  get "reports/daily_export_excel",  to: "reports#daily_export_excel",  as: :reports_daily_export_excel # XLSX
-  get "history",                     to: "reports#history",             as: :history
-  get "closeout",                    to: "reports#closeout",            as: :closeout
-
-  # ================== Admin: gestión de usuarios ==================
-  namespace :admin do
-    resources :users, only: [ :index, :new, :create ]
-  end
-
-  # ================== Griselle Cart (carrito especial) ==================
+  # Carrito secundario
   resource :griselle_cart, only: [ :show ], controller: :griselle_cart do
     post :add
     post :increment
@@ -56,7 +74,19 @@ Rails.application.routes.draw do
     post :checkout
   end
 
-  # ================== Cobrar Mensualidad ==================
+  # =========================================================
+  # 📊 REPORTES Y MEMBRESIAS
+  # =========================================================
+  get "reports/daily_export",        to: "reports#daily_export",        as: :reports_daily_export
+  get "reports/daily_export_excel",  to: "reports#daily_export_excel",  as: :reports_daily_export_excel
+  get "history",                     to: "reports#history",             as: :history
+  get "closeout",                    to: "reports#closeout",            as: :closeout
+
   get  "memberships",          to: "memberships#new",      as: :memberships
   post "memberships/checkout", to: "memberships#checkout", as: :memberships_checkout
+
+  # ADMIN
+  namespace :admin do
+    resources :users, only: [ :index, :new, :create ]
+  end
 end

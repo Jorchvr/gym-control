@@ -1,187 +1,224 @@
-<%= form_with(model: @client, local: true, html: { multipart: true }) do |f| %>
-  <% if @client.errors.any? %>
-    <div class="card" style="border-color:#ef4444; background:rgba(239,68,68,.1); padding:.75rem 1rem; margin-bottom:1rem;">
-      <strong><%= pluralize(@client.errors.count, "error") %>:</strong>
-      <ul style="margin:.5rem 0 0 1rem;">
-        <% @client.errors.full_messages.each do |m| %>
-          <li><%= m %></li>
-        <% end %>
-      </ul>
+<%# app/views/clients/_form.html.erb %>
+<% prices = defined?(Client::PRICES) ? Client::PRICES : { "day" => 3000, "week" => 12000, "month" => 26500 } %>
+<% d, w, m = prices["day"]/100.0, prices["week"]/100.0, prices["month"]/100.0 %>
+
+<%# ATENCIÓN: data-turbo="false" ES LA CLAVE PARA QUE EL SCRIPT NO FALLE %>
+<%= form_with(model: client, local: true, html: { multipart: true, id: "client-form", data: { turbo: "false" } }) do |f| %>
+  
+  <% if client.errors.any? %>
+    <div class="card" style="border-color:#ef4444; background:rgba(239,68,68,.1); padding:1rem; margin-bottom:1rem; color:#ef4444;">
+      <ul><% client.errors.full_messages.each do |msg| %><li><%= msg %></li><% end %></ul>
     </div>
   <% end %>
 
   <div class="grid-2" style="gap:1rem;">
     <div class="card">
-      <h3 class="card-title mb-2">Datos del cliente</h3>
-
+      <h3 class="card-title mb-2">Datos del Cliente</h3>
+      
       <div class="form-row">
         <%= f.label :name, "Nombre", class: "label" %>
-        <%= f.text_field :name, class: "form-input", required: true %>
+        <%= f.text_field :name, class: "form-input", required: true, placeholder: "Ej. Juan Pérez" %>
       </div>
 
-      <div class="form-row">
-        <%= f.label :membership_type, "Membresía", class: "label" %>
-        <%= f.select :membership_type,
-          options_for_select(
-            [
-              ["Día - $30",   "day"],
-              ["Semana - $120", "week"],
-              ["Mes - $265",  "month"]
-            ],
-            @client.membership_type
-          ),
-          { include_blank: "Sin plan" },
-          class: "form-select" %>
+      <div class="grid-2" style="gap:.5rem; margin-top:.5rem;">
+        <div>
+          <%= f.label :age, "Edad", class: "label" %>
+          <%= f.number_field :age, class: "form-input", placeholder: "25" %>
+        </div>
+        <div>
+          <%= f.label :height, "Altura (m)", class: "label" %>
+          <%= f.number_field :height, step: 0.01, class: "form-input", placeholder: "1.75" %>
+        </div>
       </div>
-
-      <div class="form-row">
-        <%= f.label :enrolled_on, "Inscripción", class: "label" %>
-        <%= f.date_field :enrolled_on, class: "form-input" %>
+       <div class="grid-2" style="gap:.5rem; margin-top:.5rem;">
+        <div>
+          <%= f.label :weight, "Peso (kg)", class: "label" %>
+          <%= f.number_field :weight, step: 0.01, class: "form-input", placeholder: "80.0" %>
+        </div>
+        <div>
+           <%= f.label :membership_type, "Membresía", class: "label" %>
+           <%= f.select :membership_type, 
+              options_for_select([["Día - $#{d.to_i}", "day"], ["Semana - $#{w.to_i}", "week"], ["Mes - $#{m.to_i}", "month"]], client.membership_type),
+              { include_blank: "Seleccionar..." }, 
+              class: "form-select", id: "mem_select" %>
+        </div>
       </div>
-
-      <div class="form-row">
-        <%= f.label :next_payment_on, "Próximo pago", class: "label" %>
-        <%= f.date_field :next_payment_on, class: "form-input" %>
+      <div class="grid-2" style="gap:.5rem; margin-top:.5rem;">
+        <div><%= f.label :enrolled_on, "Inscripción", class: "label" %> <%= f.date_field :enrolled_on, class: "form-input" %></div>
+        <div><%= f.label :next_payment_on, "Próximo pago", class: "label" %> <%= f.date_field :next_payment_on, class: "form-input" %></div>
       </div>
     </div>
 
     <div class="card">
-      <h3 class="card-title mb-2">Foto</h3>
+      <h3 class="card-title mb-2">Foto de Perfil</h3>
 
-      <!-- 1) Input simple: en móvil abre cámara -->
-      <div class="form-row">
-        <%= f.label :photo, "Tomar/Seleccionar foto (simple)", class: "label" %>
-        <%= f.file_field :photo,
-              accept: "image/*;capture=camera",
-              capture: "environment",
-              class: "form-input",
-              id: "client_photo_input" %>
-        <p class="text-muted" style="margin-top:.4rem;">
-          En celular abre la cámara; en computadora abre el selector del sistema.
-        </p>
+      <%= f.file_field :photo, accept: "image/*", style: "display:none;", id: "real_file" %>
+
+      <div style="background:#000; border:1px solid #444; border-radius:8px; overflow:hidden; min-height:220px; position:relative; display:flex; justify-content:center; align-items:center;">
+        <video id="gymVideo" autoplay playsinline muted style="width:100%; height:auto; display:none;"></video>
+        <canvas id="gymCanvas" style="display:none;"></canvas>
+        <img id="gymPreview" style="width:100%; display:none;">
+        
+        <div id="gymPlaceholder" style="text-align:center;">
+          <% if client.photo.attached? %>
+            <%= image_tag client.photo, style: "max-width:120px; border-radius:5px;" %>
+            <p style="color:#aaa; font-size:0.8rem;">Actual</p>
+          <% else %>
+            <div style="font-size:3rem;">📷</div>
+            <p style="color:#666;">Sin foto</p>
+          <% end %>
+        </div>
       </div>
 
-      <hr style="opacity:.15; margin:.75rem 0;">
-
-      <!-- 2) Cámara integrada (navegador) -->
-      <div id="cameraBox" data-turbo="false">
-        <div style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; margin-bottom:.5rem;">
-          <button type="button" class="btn btn-primary" id="camStartBtn">Iniciar cámara</button>
-          <button type="button" class="btn" id="camStopBtn">Detener</button>
-          <button type="button" class="btn btn-accent" id="camCaptureBtn">Capturar</button>
-          <button type="button" class="btn" id="camUseBtn">Usar captura</button>
-          <span class="text-muted" id="camStatus" style="margin-left:.5rem;"></span>
+      <div style="margin-top:10px; display:flex; flex-direction:column; gap:5px;">
+        <button type="button" class="btn btn-primary" id="btnStartCam">🔌 Encender Cámara</button>
+        
+        <select id="gymCamSelect" class="form-input" style="display:none;"></select>
+        
+        <div id="gymActions" style="display:none; gap:5px;">
+          <button type="button" class="btn btn-accent" style="flex:1;" id="btnSnap">📸 Capturar</button>
+          <button type="button" class="btn btn-danger" id="btnStop">❌</button>
         </div>
-
-        <video id="camVideo" autoplay playsinline muted
-               style="width:100%; max-width:560px; background:#111; border-radius:.75rem;"></video>
-
-        <canvas id="camCanvas" style="display:none;"></canvas>
-
-        <img id="camPreview" alt="Previsualización"
-             style="display:none; max-width:220px; margin-top:.5rem; border:1px solid rgba(255,255,255,.1); border-radius:.5rem;"/>
+        
+        <button type="button" class="btn btn-success" id="btnConfirmPhoto" style="display:none;">✅ Usar Foto</button>
+        
+        <button type="button" class="btn btn-sm" onclick="document.getElementById('real_file').click()" style="background:#333; margin-top:5px;">📁 Subir Archivo</button>
       </div>
-
-      <% if @client.photo&.attached? %>
-        <div class="form-row" style="margin-top:.75rem;">
-          <label class="label">Foto actual</label>
-          <div>
-            <%= image_tag @client.photo, style: "max-width:220px; border:1px solid rgba(255,255,255,.1); border-radius:.5rem;" %>
-          </div>
-        </div>
-      <% end %>
     </div>
   </div>
 
-  <div class="mt-4" style="display:flex; gap:.75rem; flex-wrap:wrap;">
-    <%= f.submit class: "btn btn-primary" %>
-    <%= link_to "Cancelar", (@client.persisted? ? client_path(@client) : clients_path), class: "btn" %>
-    <%= link_to "Inicio", authenticated_root_path, class: "btn" %>
+  <div class="card" style="margin-top:1rem;">
+    <% if client.new_record? %>
+      <h4 class="card-title">Pago</h4>
+      <div class="grid-2" style="gap:1rem;">
+        <div><label class="label">Total</label><%= number_field_tag :registration_price_mxn, ('%.2f' % m), class: "form-input", id: "gymPriceInput" %></div>
+        <div>
+           <label class="label">Método</label>
+           <div style="display:flex; gap:10px;">
+             <label style="color:#fff;"><input type="radio" name="client[payment_method]" value="cash" checked> Efectivo</label>
+             <label style="color:#fff;"><input type="radio" name="client[payment_method]" value="transfer"> Transferencia</label>
+           </div>
+        </div>
+      </div>
+      <%= f.submit "Guardar Cliente", class: "btn btn-primary w-full mt-4" %>
+    <% else %>
+      <%= f.submit "Actualizar Datos", class: "btn btn-primary w-full mt-4" %>
+    <% end %>
   </div>
 <% end %>
 
-<%# ===== JS mínimo e incrustado para la cámara ===== %>
-<% content_for :body_end do %>
 <script>
 (function() {
-  const statusEl = document.getElementById("camStatus");
-  const videoEl  = document.getElementById("camVideo");
-  const canvasEl = document.getElementById("camCanvas");
-  const previewEl= document.getElementById("camPreview");
-  const startBtn = document.getElementById("camStartBtn");
-  const stopBtn  = document.getElementById("camStopBtn");
-  const captBtn  = document.getElementById("camCaptureBtn");
-  const useBtn   = document.getElementById("camUseBtn");
-  const fileInput= document.getElementById("client_photo_input");
+  console.log("🚀 Iniciando script de cámara...");
 
   let stream = null;
+  const video = document.getElementById('gymVideo');
+  const canvas = document.getElementById('gymCanvas');
+  const preview = document.getElementById('gymPreview');
+  const placeholder = document.getElementById('gymPlaceholder');
+  const select = document.getElementById('gymCamSelect');
+  const actions = document.getElementById('gymActions');
+  const btnStart = document.getElementById('btnStartCam');
+  const btnSnap = document.getElementById('btnSnap');
+  const btnStop = document.getElementById('btnStop');
+  const btnConfirm = document.getElementById('btnConfirmPhoto');
+  const realFile = document.getElementById('real_file');
+  const priceInput = document.getElementById('gymPriceInput');
+  const memSelect = document.getElementById('mem_select');
 
-  function setStatus(msg){ if(statusEl){ statusEl.textContent = msg; } }
+  // Lógica de Precios
+  if(memSelect && priceInput) {
+    memSelect.addEventListener('change', function() {
+      const txt = this.options[this.selectedIndex].text;
+      if(txt.includes('$')) priceInput.value = parseFloat(txt.split('$')[1]).toFixed(2);
+    });
+  }
 
-  async function startCam() {
+  // FUNCIONES DE CÁMARA
+  async function startCamera(deviceId = null) {
     try {
-      stopCam(); // por si acaso
-      // constraints simples; el navegador elige cámara por defecto
-      stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-      videoEl.srcObject = stream;
-      await videoEl.play().catch(()=>{});
-      setStatus("Cámara iniciada.");
-    } catch(e) {
-      setStatus("No se pudo iniciar la cámara: " + e.name + " — " + e.message);
-      if (e.name === "NotAllowedError") {
-        setStatus("Permiso denegado. Activa la cámara en el candado del navegador.");
+      // 1. Permisos
+      const initStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      initStream.getTracks().forEach(t => t.stop()); // Solo permiso
+
+      // 2. Listar
+      if(select.options.length === 0) {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const inputs = devices.filter(d => d.kind === 'videoinput');
+        select.innerHTML = '<option value="">-- Cambiar --</option>';
+        inputs.forEach((d, i) => {
+          const opt = document.createElement('option');
+          opt.value = d.deviceId;
+          opt.text = d.label || `Cámara ${i+1}`;
+          select.appendChild(opt);
+        });
+        if(inputs.length > 1) select.style.display = 'block';
       }
-      if (e.name === "NotFoundError") {
-        setStatus("No hay cámara disponible.");
-      }
+
+      // 3. Iniciar Stream
+      const constraints = { video: deviceId ? { deviceId: { exact: deviceId } } : true };
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
+      video.srcObject = stream;
+      video.style.display = 'block';
+      await video.play();
+
+      // UI
+      placeholder.style.display = 'none';
+      btnStart.style.display = 'none';
+      actions.style.display = 'flex';
+      preview.style.display = 'none';
+      btnConfirm.style.display = 'none';
+
+    } catch(err) {
+      alert("⚠️ Error: " + err.message + "\n\nIMPORTANTE: Usa http://localhost:3000 (no 127.0.0.1) para que Brave permita la cámara.");
     }
   }
 
-  function stopCam() {
-    if (stream) {
-      stream.getTracks().forEach(t => t.stop());
-      stream = null;
-      setStatus("Cámara detenida.");
-    }
-    if (videoEl) { videoEl.srcObject = null; }
+  function snap() {
+    if(!stream) return;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    preview.src = canvas.toDataURL('image/jpeg');
+    
+    video.style.display = 'none';
+    preview.style.display = 'block';
+    actions.style.display = 'none';
+    btnConfirm.style.display = 'block';
+    
+    // Pausar stream
+    stream.getTracks().forEach(t => t.stop());
   }
 
-  function capture() {
-    if (!stream) { setStatus("Inicia la cámara antes de capturar."); return; }
-    const w = videoEl.videoWidth || 640;
-    const h = videoEl.videoHeight || 480;
-    canvasEl.width = w; canvasEl.height = h;
-    const ctx = canvasEl.getContext("2d");
-    ctx.drawImage(videoEl, 0, 0, w, h);
-    const dataUrl = canvasEl.toDataURL("image/jpeg", 0.92);
-    previewEl.src = dataUrl;
-    previewEl.style.display = "inline-block";
-    setStatus("Foto capturada. Pulsa 'Usar captura' para adjuntarla.");
+  function save() {
+    fetch(preview.src)
+      .then(res => res.blob())
+      .then(blob => {
+        const file = new File([blob], "foto_cam.jpg", { type: "image/jpeg" });
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        realFile.files = dt.files;
+        alert("✅ Foto lista para guardar.");
+        btnConfirm.style.display = 'none';
+        select.style.display = 'none';
+      });
   }
 
-  async function useCapture() {
-    if (!previewEl.src) { setStatus("No hay captura disponible."); return; }
-    try {
-      const res  = await fetch(previewEl.src);
-      const blob = await res.blob();
-      const file = new File([blob], "captura.jpg", { type: "image/jpeg" });
-      const dt   = new DataTransfer();
-      dt.items.add(file);
-      fileInput.files = dt.files; // ← ADJUNTA AL MISMO :photo
-      setStatus("Captura adjuntada al formulario.");
-    } catch(e) {
-      setStatus("Error al adjuntar: " + e.message);
-    }
+  function stop() {
+    if(stream) stream.getTracks().forEach(t => t.stop());
+    video.style.display = 'none';
+    placeholder.style.display = 'block';
+    btnStart.style.display = 'block';
+    actions.style.display = 'none';
+    select.style.display = 'none';
   }
 
-  // Eventos
-  if (startBtn) startBtn.addEventListener("click", startCam);
-  if (stopBtn)  stopBtn.addEventListener("click", stopCam);
-  if (captBtn)  captBtn.addEventListener("click", capture);
-  if (useBtn)   useBtn.addEventListener("click", useCapture);
+  // LISTENERS DIRECTOS
+  if(btnStart) btnStart.onclick = () => startCamera();
+  if(select) select.onchange = () => startCamera(select.value);
+  if(btnSnap) btnSnap.onclick = snap;
+  if(btnStop) btnStop.onclick = stop;
+  if(btnConfirm) btnConfirm.onclick = save;
 
-  // Si sales de la página, corta la cámara (Turbo u otros)
-  document.addEventListener("turbo:before-cache", stopCam);
 })();
 </script>
-<% end %>

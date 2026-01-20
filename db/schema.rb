@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_22_180001) do
+ActiveRecord::Schema[8.0].define(version: 2026_01_13_124448) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "unaccent"
@@ -72,6 +72,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_180001) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.integer "client_number"
+    t.text "fingerprint_template"
+    t.text "fingerprint"
+    t.datetime "scanning_until"
     t.index ["client_number"], name: "index_clients_on_client_number", unique: true
     t.index ["user_id"], name: "index_clients_on_user_id"
   end

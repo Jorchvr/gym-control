@@ -8,16 +8,12 @@
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
 
-    <%# CSS principal del proyecto %>
+    <%# CSS principal %>
     <%= stylesheet_link_tag "application", "data-turbo-track": "reload" %>
-
-    <%# Punto de inserción para vistas (ej. login fija la imagen de fondo) %>
     <%= yield :head %>
   </head>
 
-  <%# Permitimos que las vistas definan clases del body: e.g. "login-page has-hero" %>
   <body class="<%= content_for?(:body_class) ? yield(:body_class) : nil %>">
-    <%# Mensajes flash (no dependen de sesión) %>
     <% if flash.any? %>
       <div class="flash-stack" style="position:fixed;top:8px;right:8px;z-index:9999;">
         <% flash.each do |k,v| %>
@@ -29,8 +25,40 @@
     <% end %>
 
     <%= yield %>
-
-    <%# Punto de inserción para JS específico de cada vista (ej. scripts de login o dashboard) %>
     <%= yield :body_end %>
+
+    <script type="module">
+      import consumer from "<%= asset_path 'channels/consumer' rescue '/assets/channels/consumer' %>"
+
+      if (!window.fingerprintSubscribed) {
+        window.fingerprintSubscribed = true;
+        
+        consumer.subscriptions.create("FingerprintChannel", {
+          connected() {
+            console.log("🟢 LECTOR LISTO: Esperando huella...");
+          },
+
+          received(data) {
+            console.log("📨 DATOS RECIBIDOS:", data);
+
+            if (data.action === 'login') {
+              // ✅ MAGIA AQUÍ: Redirige al HOME buscando al cliente automáticamente.
+              console.log("🚀 Cargando ficha en Dashboard...");
+              window.location.href = `/?search_number=${data.client_id}&commit=Buscar`;
+            } 
+            else if (data.action === 'registered') {
+              // Recarga para ver el check verde o actualizar la vista
+              location.reload();
+            }
+            else if (data.action === 'unknown') {
+              // Solo alertamos si NO estamos registrando para no molestar
+              if (!window.location.href.includes('clients/')) {
+                 console.log("❌ Huella no reconocida");
+              }
+            }
+          }
+        });
+      }
+    </script>
   </body>
 </html>

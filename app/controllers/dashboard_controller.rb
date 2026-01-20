@@ -46,14 +46,18 @@ class DashboardController < ApplicationController
       @today_total_cents += membership_sales_today.sum(:amount_cents).to_i
     end
 
-    # 3. RESTAR Gastos/Servicios (NUEVO)
+    # 3. RESTAR Gastos/Servicios
     if defined?(Expense)
       expenses_today = Expense.where(user_id: current_user.id, occurred_at: day_range)
       @today_expenses_cents = expenses_today.sum(:amount_cents).to_i
-
-      # Restamos lo gastado del total mostrado en el dashboard
       @today_total_cents -= @today_expenses_cents
     end
+
+    # ========================================================
+    # 🔴 CORRECCIÓN CRÍTICA: ESTA LÍNEA FALTABA 🔴
+    # ========================================================
+    # Esto permite que la vista sepa si debe activar el script de escucha
+    @scanner_active = session[:scanner_active] == true
   end
 
   private
@@ -61,7 +65,6 @@ class DashboardController < ApplicationController
   def ensure_check_in!(client)
     return unless defined?(CheckIn)
     today = Time.zone.today.all_day
-
     exists = CheckIn.where(client_id: client.id, occurred_at: today).exists?
     return if exists
 
@@ -71,6 +74,6 @@ class DashboardController < ApplicationController
       occurred_at: Time.current
     )
   rescue => e
-    Rails.logger.warn("[CHECKIN] No se pudo registrar check-in: #{e.class} #{e.message}")
+    Rails.logger.warn("[CHECKIN] Error: #{e.message}")
   end
 end

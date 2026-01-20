@@ -10,6 +10,11 @@ class Client < ApplicationRecord
   # Aquí se definen los tipos de membresía válidos (0, 1, 2)
   enum :membership_type, { day: 0, week: 1, month: 2 }
 
+  # ================== HUELLA DIGITAL (NUEVO) ==================
+  # Scope útil para encontrar clientes que ya tienen huella registrada
+  scope :with_fingerprint, -> { where.not(fingerprint: [ nil, "" ]) }
+  # ============================================================
+
   validates :name, presence: true, length: { maximum: 120 }
   validates :age, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
   validates :weight, numericality: { greater_than: 0 }, allow_nil: true
