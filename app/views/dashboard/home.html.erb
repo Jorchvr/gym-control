@@ -6,26 +6,13 @@
   <%# ==================== PANEL IZQUIERDO: GYM CONTROL ==================== %>
   <div class="panel gym-panel">
     <div class="header-row">
-      <h2 class="title">Gym Control</h2>
+      <h2 class="title">Power Gym</h2>
       
       <div style="display:flex; gap: 15px; align-items:center;">
         <%# --- BOTÓN DE MODO NOCHE/DÍA --- %>
         <button id="theme-toggle" class="btn btn-icon" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); border-radius: 50%; width: 42px; height: 42px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
           <span id="theme-icon">🌙</span>
         </button>
-
-        <% if @scanner_active %>
-          <div style="color:#10b981; font-size:0.75rem; font-weight:900; border:2px solid #10b981; padding:4px 10px; border-radius:12px; background: rgba(16, 185, 129, 0.1); animation: blink 2s infinite;">
-            📡 ESCANEANDO...
-          </div>
-        <% else %>
-          <%= button_to "🔌 ACTIVAR LECTOR", 
-                start_scanner_clients_path, 
-                method: :post, 
-                class: "btn btn-warning btn-sm", 
-                form: { data: { turbo: false } } %>
-        <% end %>
-
         <%= image_tag "logo.png", alt: "Logo", class: "logo" %>
       </div>
     </div>
