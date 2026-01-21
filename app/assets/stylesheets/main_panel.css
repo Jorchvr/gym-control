@@ -1,38 +1,37 @@
 /* =========================================
-   VARIABLES DE TEMA (COLORES PEDIDOS)
+   VARIABLES DE DISEÑO (PASTEL & PREMIUM)
    ========================================= */
 :root {
-  /* MODO OSCURO: Gris Oscuro + Rojo Mate */
-  --bg-color: #1a1c21;
-  --text-color: #e8ecf1;
-  --card-bg: rgba(24, 26, 31, 0.9);
-  --border-color: rgba(255, 255, 255, 0.1);
-  --btn-bg: #b91c1c; /* ROJO MATE */
-  --accent-color: #b91c1c;
-}
-
-body.light-mode {
-  /* MODO CLARO: Blanco + Azul Rey */
-  --bg-color: #ffffff;
-  --text-color: #1e293b;
-  --card-bg: #ffffff;
-  --border-color: #cbd5e1;
-  --btn-bg: #4169E1; /* AZUL REY */
-  --accent-color: #4169E1;
+  --primary-blue: #A2D2FF;     /* Azul Pastel */
+  --dark-bg: #121418;         /* Gris casi negro */
+  --dark-card: #1c1f26;       /* Gris tarjeta */
+  --light-bg: #ffffff;        /* Blanco puro */
+  --light-card: #f8fafc;      /* Blanco suave */
+  --border-radius: 12px;
+  --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* =========================================
-   ESTILOS BASE
+   ESTILOS BASE Y LETRA (INTER)
    ========================================= */
 body {
   margin: 0;
-  background-color: var(--bg-color);
-  color: var(--text-color);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif; /* Letra bonita */
-  transition: all 0.3s ease;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--dark-bg);
+  color: #ffffff;
+  transition: var(--transition);
 }
 
-/* SIMETRÍA 50/50 ESTRICTA */
+/* MODO DÍA: FUERZA NEGRO TOTAL */
+body.light-mode {
+  background-color: var(--light-bg);
+}
+
+body.light-mode * {
+  color: #000000 !important; /* Letras negras en todo el sitio */
+}
+
+/* SIMETRÍA 50/50 PERFECTA */
 .split-container {
   display: flex;
   height: 100vh;
@@ -40,57 +39,75 @@ body {
 }
 
 .panel {
-  flex: 0 0 50%; /* Mitad exacta */
+  flex: 0 0 50%;
   max-width: 50%;
-  padding: 2rem;
+  padding: 2.5rem;
   box-sizing: border-box;
   overflow-y: auto;
 }
 
-/* BOTONES (Forzando los colores pedidos) */
-.btn, .btn-primary, .btn-accent, .product-square-btn {
-  background-color: var(--btn-bg) !important;
-  color: #ffffff !important;
+.gym-panel { border-right: 1px solid rgba(255,255,255,0.05); }
+
+/* =========================================
+   BOTONES: AZUL PASTEL SIN EXCEPCIÓN
+   ========================================= */
+.btn, 
+.btn-primary, 
+.btn-accent, 
+.btn-danger, 
+.product-square-btn,
+button,
+input[type="submit"] {
+  background-color: var(--primary-blue) !important;
+  color: #000000 !important; /* Texto del botón siempre negro para leer bien */
+  border-radius: var(--border-radius);
   border: none !important;
-  border-radius: 8px;
-  font-weight: 600;
-  transition: filter 0.2s;
+  padding: 0.8rem 1.5rem;
+  font-weight: 700;
   cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  text-decoration: none;
+  transition: var(--transition);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  letter-spacing: 0.5px;
 }
 
-/* El botón de peligro se mantiene rojo oscuro para que resalte como alerta */
-.btn-danger { background-color: #991b1b !important; } 
+.btn:hover, .product-square-btn:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.05);
+  box-shadow: 0 6px 15px rgba(162, 210, 255, 0.4);
+}
 
-.btn:hover { filter: brightness(1.2); }
-
-/* TARJETAS */
+/* =========================================
+   TARJETAS Y FORMULARIOS
+   ========================================= */
 .card {
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
+  background: var(--dark-card);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: var(--border-radius);
   padding: 1.5rem;
-  margin-bottom: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+body.light-mode .card {
+  background: var(--light-card);
+  border: 1px solid #e2e8f0;
 }
 
 .form-input {
-  background: var(--bg-color);
-  color: var(--text-color);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 0.75rem;
   width: 100%;
-  box-sizing: border-box;
+  padding: 1rem;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #ffffff;
 }
 
-/* Grid de productos simétrico */
-.product-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 1rem;
+body.light-mode .form-input {
+  background: #ffffff;
+  border: 2px solid #000000; /* Borde negro para que se vea funcional */
+  color: #000000;
+}background-color: #ffffff !important;
 }
 /* Fix global para scroll */
 /* Fix global para scroll */
