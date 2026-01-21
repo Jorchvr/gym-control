@@ -195,3 +195,34 @@ body.light-mode .form-input {
   .split-container { flex-direction: column; height: auto; }
   .panel { flex: 0 0 auto; width: 100%; max-width: 100%; }
 }
+/* =========================================
+   FIX: QUITAR IMAGEN GRANDE Y LOGO PEQUEÑO
+   ========================================= */
+
+/* 1. Forzar que el logo sea pequeño (como estaba antes) */
+.logo {
+  height: 55px !important; /* Tamaño pequeño para el header */
+  width: auto !important;
+  max-width: 150px !important;
+  object-fit: contain !important;
+  background: transparent !important; /* Quita el fondo blanco si lo tiene */
+  box-shadow: none !important; /* Quita la sombra pesada */
+  border: none !important;
+}
+
+/* 2. Quitar la imagen gigante de fondo o del panel */
+.gym-panel, 
+.panel, 
+body, 
+.split-container {
+  background-image: none !important; /* Elimina fondos pesados */
+}
+
+/* 3. Asegurar que el header no se rompa */
+.header-row {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  width: 100% !important;
+  margin-bottom: 1.5rem !important;
+}
