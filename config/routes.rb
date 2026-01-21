@@ -1,5 +1,5 @@
 Rails.application.routes.draw do
-  # 🔌 1. HABILITAR WEBSOCKETS (Se queda por si acaso)
+  # 🔌 1. HABILITAR WEBSOCKETS
   mount ActionCable.server => "/cable"
 
   # CONFIGURACIÓN DE USUARIOS (Devise)
@@ -17,13 +17,15 @@ Rails.application.routes.draw do
       post :start_registration
       post :attach_last_fingerprint
       get  :fingerprint_status
-      get  :card_view   # <--- VITAL: Para pintar la tarjeta
+      get  :card_view   # <--- VITAL: Para pintar la tarjeta vía Turbo o AJAX
     end
 
     # Acciones generales
     collection do
-      # 🚨 RUTA CRÍTICA: C# manda aquí la señal
+      # 🚨 RUTA CRÍTICA ACTUALIZADA:
+      # Ahora acepta POST (App C#) y GET (Pruebas manuales)
       post :check_entry
+      get  :check_entry
 
       # 📥 C# descarga huellas aquí
       get :fingerprints_data
@@ -31,11 +33,11 @@ Rails.application.routes.draw do
       # Botón "Encender Lector"
       post :start_scanner
 
-      # 📡 RUTA DE RASTREO: El Home pregunta aquí si hay alguien nuevo
+      # 📡 RUTA DE RASTREO: El Home pregunta aquí si hay alguien nuevo (Polling)
       get :check_latest
 
       # (Compatibilidad)
-      get  :last_entry
+      get :last_entry
     end
   end
 
@@ -65,7 +67,7 @@ Rails.application.routes.draw do
     post :checkout
   end
 
-  # Carrito secundario
+  # Carrito secundario (Griselle)
   resource :griselle_cart, only: [ :show ], controller: :griselle_cart do
     post :add
     post :increment
