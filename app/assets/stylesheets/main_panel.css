@@ -1,60 +1,96 @@
 /* =========================================
-   VARIABLES DE TEMA (DARK PREMIUM & CLEAN LIGHT)
+   VARIABLES DE TEMA (COLORES PEDIDOS)
    ========================================= */
 :root {
-  /* MODO OSCURO ORIGINAL (TEXTURA METÁLICA) */
-  --bg-image: linear-gradient(rgba(15, 17, 21, 0.85), rgba(11, 13, 18, 0.85)), url('/assets/fondo_gym.jpg');
+  /* MODO OSCURO: Gris Oscuro + Rojo Mate */
+  --bg-color: #1a1c21;
   --text-color: #e8ecf1;
-  --card-bg: rgba(24, 26, 31, 0.75);
+  --card-bg: rgba(24, 26, 31, 0.9);
   --border-color: rgba(255, 255, 255, 0.1);
-  --accent-red: #ef4444;
-  --title-color: #ffffff;
+  --btn-bg: #b91c1c; /* ROJO MATE */
+  --accent-color: #b91c1c;
 }
 
-/* MODO CLARO DISEÑADO (CON MEJOR LETRA Y BORDES) */
 body.light-mode {
-  --bg-image: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  /* MODO CLARO: Blanco + Azul Rey */
+  --bg-color: #ffffff;
   --text-color: #1e293b;
   --card-bg: #ffffff;
   --border-color: #cbd5e1;
-  --title-color: #0f172a;
+  --btn-bg: #4169E1; /* AZUL REY */
+  --accent-color: #4169E1;
 }
 
 /* =========================================
-   APLICACIÓN DE ESTILOS (SÓLO LO NECESARIO)
+   ESTILOS BASE
    ========================================= */
 body {
   margin: 0;
-  background: var(--bg-image);
-  background-size: cover;
-  background-attachment: fixed;
+  background-color: var(--bg-color);
   color: var(--text-color);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  transition: background 0.3s ease, color 0.3s ease;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif; /* Letra bonita */
+  transition: all 0.3s ease;
 }
 
-/* Bordes bonitos para las boxes en modo claro */
-body.light-mode .card, 
-body.light-mode .mini-cart, 
-body.light-mode .status-panel {
-  border: 1px solid #e2e8f0;
-  border-bottom: 3px solid var(--accent-red); /* Línea de color abajo para estilo */
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+/* SIMETRÍA 50/50 ESTRICTA */
+.split-container {
+  display: flex;
+  height: 100vh;
+  width: 100%;
 }
 
-/* Forzar que las letras se vean en blanco */
-body.light-mode .title, 
-body.light-mode .card-title, 
-body.light-mode .user-greeting,
-body.light-mode .product-square-name {
-  color: var(--title-color) !important;
+.panel {
+  flex: 0 0 50%; /* Mitad exacta */
+  max-width: 50%;
+  padding: 2rem;
+  box-sizing: border-box;
+  overflow-y: auto;
 }
 
-/* Inputs legibles en blanco */
-body.light-mode .form-input {
-  background: #ffffff !important;
-  border: 1.5px solid #cbd5e1 !important;
-  color: #0f172a !important;
+/* BOTONES (Forzando los colores pedidos) */
+.btn, .btn-primary, .btn-accent, .product-square-btn {
+  background-color: var(--btn-bg) !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: filter 0.2s;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+/* El botón de peligro se mantiene rojo oscuro para que resalte como alerta */
+.btn-danger { background-color: #991b1b !important; } 
+
+.btn:hover { filter: brightness(1.2); }
+
+/* TARJETAS */
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.form-input {
+  background: var(--bg-color);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.75rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Grid de productos simétrico */
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 1rem;
 }
 /* Fix global para scroll */
 /* Fix global para scroll */
