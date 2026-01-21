@@ -2,7 +2,7 @@
 <% prices = defined?(Client::PRICES) ? Client::PRICES : { "day" => 3000, "week" => 12000, "month" => 26500 } %>
 <% d, w, m = prices["day"]/100.0, prices["week"]/100.0, prices["month"]/100.0 %>
 
-<%# ATENCIÓN: data-turbo="false" ES LA CLAVE PARA QUE EL SCRIPT NO FALLE %>
+<%# 🔥 CORRECCIÓN APLICADA: multipart: true permite subir archivos, turbo: "false" evita errores de Rails moderno %>
 <%= form_with(model: client, local: true, html: { multipart: true, id: "client-form", data: { turbo: "false" } }) do |f| %>
   
   <% if client.errors.any? %>
@@ -52,6 +52,7 @@
     <div class="card">
       <h3 class="card-title mb-2">Foto de Perfil</h3>
 
+      <%# Este es el input oculto que recibe la foto real %>
       <%= f.file_field :photo, accept: "image/*", style: "display:none;", id: "real_file" %>
 
       <div style="background:#000; border:1px solid #444; border-radius:8px; overflow:hidden; min-height:220px; position:relative; display:flex; justify-content:center; align-items:center;">
@@ -61,6 +62,7 @@
         
         <div id="gymPlaceholder" style="text-align:center;">
           <% if client.photo.attached? %>
+            <%# Usamos cl_image_tag si tienes la gema configurada, o image_tag normal %>
             <%= image_tag client.photo, style: "max-width:120px; border-radius:5px;" %>
             <p style="color:#aaa; font-size:0.8rem;">Actual</p>
           <% else %>
