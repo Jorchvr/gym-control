@@ -1,9 +1,9 @@
-<%# 1. ANTENA PARA RECIBIR SEÑALES EN TIEMPO REAL %>
+<%# 1. ANTENA PARA RECIBIR SEÑALES EN TIEMPO REAL (TURBO STREAMS) %>
 <%= turbo_stream_from "recepcion" %>
 <%= stylesheet_link_tag "main_panel", media: "all", "data-turbo-track": "reload" %>
 
 <div class="split-container">
-  <%# ==================== PANEL IZQUIERDO: GYM ==================== %>
+  <%# ==================== PANEL IZQUIERDO: GYM CONTROL ==================== %>
   <div class="panel gym-panel">
     <div class="header-row">
       <h2 class="title">Gym Control</h2>
@@ -48,18 +48,14 @@
       <% end %>
     </div>
 
-    <%# ========================================================= %>
-    <%# 🟢 CONTENEDOR DE HUELLA AUTOMÁTICA (TURBO Y SCRIPT) %>
-    <%# Usamos el ID 'contenedor_resultado' para Turbo y mantenemos %>
-    <%# el ID 'live-scan-result' dentro para tu script original. %>
-    <%# ========================================================= %>
+    <%# 🟢 CONTENEDOR DE HUELLA AUTOMÁTICA %>
     <div id="contenedor_resultado" style="margin-top: 1.5rem;">
       <div id="live-scan-result">
         <%= render "clients/card_result", client: nil %>
       </div>
     </div>
 
-    <%# ===================== Resultado de búsqueda MANUAL ===================== %>
+    <%# ===================== RESULTADO DE BÚSQUEDA MANUAL ===================== %>
     <% if params[:search_number].present? %>
       <% if @found_client.present? %>
         <% overdue = @found_client.next_payment_on.present? && @found_client.next_payment_on < Date.current %>
@@ -167,9 +163,7 @@
       <%= link_to "Clientes", clients_path, class: "btn" %>
       <%= link_to "Registrar Cliente", new_client_path, class: "btn" %>
       <%= link_to "Cobrar mensualidad", memberships_path, class: "btn btn-accent" %>
-      
       <%= link_to "Clases (Griselle)", griselle_cart_path, class: "btn btn-accent" %>
-
       <%= link_to "Pago Servicios", new_expense_path, class: "btn btn-danger" %>
     </div>
   </div>
@@ -200,16 +194,10 @@
                     params: { product_id: p.id },
                     class: "product-square-btn",
                     form: { data: { turbo: false } } do %>
-                <div class="product-square-name">
-                  <%= p.name %>
-                </div>
+                <div class="product-square-name"><%= p.name %></div>
                 <div class="product-square-footer">
-                  <span class="product-square-price">
-                    $<%= (p.price_cents.to_i/100.0).round(2) %>
-                  </span>
-                  <span class="product-square-stock">
-                    Stock: <%= p.stock %>
-                  </span>
+                  <span class="product-square-price">$<%= (p.price_cents.to_i/100.0).round(2) %></span>
+                  <span class="product-square-stock">Stock: <%= p.stock %></span>
                 </div>
               <% end %>
             <% end %>
@@ -257,12 +245,12 @@
                 <% line_cents = p.price_cents.to_i * qty %>
                 <% total_cents += line_cents %>
 
-                <div class="cart-line">
+                <div class="cart-line" style="display: flex; justify-content: space-between; align-items: center; padding: .7rem 0; border-bottom: 1px solid var(--border);">
                   <span><%= p.name %> <em>x<%= qty %></em></span>
                   <span>$<%= (line_cents/100.0).round(2) %></span>
                 </div>
 
-                <div class="qty-actions">
+                <div class="qty-actions" style="display: flex; gap: .35rem; justify-content: flex-end; margin-top: 5px;">
                   <%= button_to "−", decrement_cart_path, method: :post,
                         params: { product_id: p.id },
                         class: "btn btn-sm btn-icon",
@@ -286,21 +274,14 @@
             <div class="mb-4">
               <label class="label">Método de pago:</label>
               <div class="radio-row">
-                <label>
-                  <input type="radio" name="payment_method" value="cash"
-                         <%= "checked" unless params[:payment_method] == "transfer" %>> Efectivo
-                </label>
-                <label style="margin-left:1rem;">
-                  <input type="radio" name="payment_method" value="transfer"
-                         <%= "checked" if params[:payment_method] == "transfer" %>> Transferencia
-                </label>
+                <label><input type="radio" name="payment_method" value="cash" <%= "checked" unless params[:payment_method] == "transfer" %>> Efectivo</label>
+                <label style="margin-left:1rem;"><input type="radio" name="payment_method" value="transfer" <%= "checked" if params[:payment_method] == "transfer" %>> Transferencia</label>
               </div>
             </div>
 
-            <div class="cart-total-row">
-              <div class="total">
-                Total:
-                $<%= ((cart || {}).sum { |pid, q| (products_map[pid.to_i]&.price_cents.to_i || 0) * q.to_i } / 100.0).round(2) %>
+            <div class="cart-total-row" style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: auto; padding-top: 1rem;">
+              <div class="total" style="font-size: 1.5rem; font-weight: 800; color: #f3f4f6;">
+                Total: $<%= ((cart || {}).sum { |pid, q| (products_map[pid.to_i]&.price_cents.to_i || 0) * q.to_i } / 100.0).round(2) %>
               </div>
               <%= f.submit "Realizar Venta", class: "btn btn-primary" %>
             </div>
@@ -315,17 +296,15 @@
   @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
 </style>
 
-<%# Mantenemos tu script original por seguridad %>
+<%# 📡 SCRIPT DE RESPALDO PARA LA HUELLA %>
 <script>
   document.addEventListener("DOMContentLoaded", function() {
     console.log("📡 [HOME] Iniciando rastreo de huellas...");
-
     let lastProcesedId = null;
     let isFetching = false;
 
     setInterval(() => {
       if (isFetching) return; 
-
       fetch('/clients/check_latest')
         .then(response => response.json())
         .then(data => {
@@ -342,19 +321,15 @@
               .then(html => {
                 const container = document.getElementById("live-scan-result");
                 container.innerHTML = html;
-                
                 container.style.opacity = 0;
                 container.style.transform = "translateY(-10px)";
                 container.style.transition = "all 0.4s ease-out";
-                
                 setTimeout(() => {
                   container.style.opacity = 1;
                   container.style.transform = "translateY(0)";
                 }, 50);
               })
-              .finally(() => {
-                isFetching = false; 
-              });
+              .finally(() => { isFetching = false; });
           }
         })
         .catch(err => console.error("Silencio en la red...", err));
