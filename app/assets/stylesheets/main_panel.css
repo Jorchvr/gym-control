@@ -1,49 +1,62 @@
 /* =========================================
-   VARIABLES DE TEMA (DARK POR DEFECTO)
+   VARIABLES DE TEMA
    ========================================= */
 :root {
   --bg-image: linear-gradient(rgba(15, 17, 21, 0.85), rgba(11, 13, 18, 0.85)), url('/assets/fondo_gym.jpg');
   --text-color: #e8ecf1;
-  --muted-color: #98a2b3;
   --card-bg: rgba(24, 26, 31, 0.75);
   --border-color: rgba(255, 255, 255, .15);
   --title-color: #ffffff;
 }
 
 /* =========================================
-   MODO CLARO - FORZAR VISIBILIDAD DE LETRAS
+   MODO CLARO - VISIBILIDAD TOTAL
    ========================================= */
 body.light-mode {
-  --bg-image: linear-gradient(rgba(241, 245, 249, 0.98), rgba(226, 232, 240, 0.98));
-  --text-color: #1a202c !important; /* Texto negro para que se vea sí o sí */
-  --muted-color: #4a5568 !important;
-  --card-bg: rgba(255, 255, 255, 0.95) !important;
-  --border-color: rgba(0, 0, 0, 0.2) !important;
-  --title-color: #000000 !important; /* Títulos negros */
+  --bg-image: linear-gradient(#f1f5f9, #e2e8f0); /* Fondo sólido claro */
+  --text-color: #0f172a !important; /* Negro azulado muy fuerte */
+  --card-bg: #ffffff !important; /* Blanco sólido, nada de transparencia */
+  --border-color: #cbd5e1 !important;
+  --title-color: #000000 !important;
 }
 
-/* Reglas globales para asegurar legibilidad en blanco */
-body.light-mode .card, 
-body.light-mode .panel, 
-body.light-mode h2, 
-body.light-mode h3, 
-body.light-mode p, 
-body.light-mode span, 
-body.light-mode strong,
-body.light-mode label {
-  color: var(--text-color) !important;
+/* Forzar que todo texto sea negro en modo claro */
+body.light-mode h1, body.light-mode h2, body.light-mode h3, 
+body.light-mode p, body.light-mode span, body.light-mode div,
+body.light-mode strong, body.light-mode label {
+  color: #000000 !important;
+  opacity: 1 !important; /* Quita cualquier transparencia */
 }
 
+/* Arreglo para los productos de la tienda */
+body.light-mode .product-square-btn {
+  background: #f8fafc !important;
+  border: 2px solid #e2e8f0 !important;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+body.light-mode .product-square-name,
+body.light-mode .product-square-stock {
+  color: #000000 !important;
+}
+
+/* Arreglo para los inputs (buscador) */
 body.light-mode .form-input {
   background: #ffffff !important;
+  color: #000000 !important;
+  border: 2px solid #cbd5e1 !important;
+}
+
+/* Arreglo para botones secundarios (Historial, Corte, etc) */
+body.light-mode .btn:not(.btn-danger):not(.btn-accent):not(.btn-primary) {
+  background: #e2e8f0 !important;
   color: #000000 !important;
   border: 1px solid #cbd5e1 !important;
 }
 
-body.light-mode .product-square-name, 
-body.light-mode .product-square-price,
-body.light-mode .metric-big {
-  color: var(--text-color) !important;
+/* Asegurar que el mensaje de "Esperando Lector" sea visible */
+body.light-mode #live-scan-result p {
+  color: #475569 !important;
 }
 /* Fix global para scroll */
 /* Fix global para scroll */
