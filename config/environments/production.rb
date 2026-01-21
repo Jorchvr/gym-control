@@ -16,7 +16,7 @@ Rails.application.configure do
   # Storage (Imágenes)
   # NOTA: En Render gratuito/básico, las imágenes se borran al hacer deploy con :local.
   # Para huellas está bien, pero para fotos de perfil necesitarías AWS S3 o Cloudinary a futuro.
-  config.active_storage.service = :local
+  config.active_storage.service = :cloudinary
 
   # Mailer
   config.action_mailer.perform_caching = false

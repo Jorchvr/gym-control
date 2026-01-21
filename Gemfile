@@ -83,3 +83,5 @@ gem "caxlsx"
 gem "roo"
 gem "roo-xls"
 # gem "spreadsheet" # Desactivado por conflicto o desuso
+
+gem "cloudinary"
