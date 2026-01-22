@@ -2,6 +2,9 @@ class Client < ApplicationRecord
   belongs_to :user, optional: true
   has_one_attached :photo
 
+  # === 🔥 AGREGADO: Esto permite recibir la foto de la cámara sin errores ===
+  attr_accessor :photo_base64
+
   # Ventas quedan con client_id = NULL si se borra el cliente
   has_many :sales,     dependent: :nullify
   # Check-ins quedan con client_id = NULL si se borra el cliente

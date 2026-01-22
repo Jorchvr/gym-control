@@ -144,24 +144,10 @@ class ClientsController < ApplicationController
       return render :new, status: :unprocessable_entity
     end
 
-    # === 📸 INICIO CAMBIO: PROCESAR FOTO DE CÁMARA (BASE64) ===
-    if params[:client][:photo_base64].present?
-      begin
-        # Separa el encabezado 'data:image/jpeg;base64' del contenido real
-        img_data = params[:client][:photo_base64].split(",")[1]
-        decoded_data = Base64.decode64(img_data)
-
-        # Adjunta la imagen procesada al cliente
-        @client.photo.attach(
-          io: StringIO.new(decoded_data),
-          filename: "cam_#{Time.current.to_i}.jpg",
-          content_type: "image/jpeg"
-        )
-      rescue => e
-        puts "Error procesando foto Base64: #{e.message}"
-      end
-    end
-    # === 📸 FIN CAMBIO ===
+    # === 📸 PROCESAR FOTO DE CÁMARA (BASE64) ===
+    # Usamos el helper privado para no repetir código
+    process_camera_photo if params[:client][:photo_base64].present?
+    # ===========================================
 
     ActiveRecord::Base.transaction do
       if @client.next_payment_on.present?
@@ -186,6 +172,10 @@ class ClientsController < ApplicationController
   end
 
   def update
+    # === 📸 FIX: PROCESAR FOTO DE CÁMARA TAMBIÉN AL ACTUALIZAR ===
+    process_camera_photo if params[:client][:photo_base64].present?
+    # =============================================================
+
     if @client.update(client_params)
       redirect_to @client, notice: "Cliente actualizado."
     else
@@ -200,9 +190,25 @@ class ClientsController < ApplicationController
   end
 
   def client_params
-    # === 📸 CAMBIO: AGREGAR :photo_base64 AL FINAL ===
+    # Se permite :photo_base64 para que el formulario lo envíe sin error
     params.require(:client).permit(:name, :age, :weight, :height, :membership_type, :client_number, :next_payment_on, :enrolled_on, :photo, :photo_base64)
   end
+
+  # === 📸 HELPER PARA PROCESAR LA FOTO BASE64 ===
+  def process_camera_photo
+    begin
+      img_data = params[:client][:photo_base64].split(",")[1]
+      decoded_data = Base64.decode64(img_data)
+      @client.photo.attach(
+        io: StringIO.new(decoded_data),
+        filename: "cam_#{Time.current.to_i}.jpg",
+        content_type: "image/jpeg"
+      )
+    rescue => e
+      puts "Error procesando foto cámara: #{e.message}"
+    end
+  end
+  # ==============================================
 
   def default_registration_price_cents(plan)
     return 0 if plan.blank?
