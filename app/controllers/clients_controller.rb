@@ -127,7 +127,6 @@ class ClientsController < ApplicationController
 
   def show; end
 
-  # ACTUALIZACIÓN: Aquí se calcula el siguiente socio
   def new
     @client = ::Client.new
     @next_id = (::Client.maximum(:id) || 0) + 1
@@ -144,6 +143,25 @@ class ClientsController < ApplicationController
       @client.errors.add(:membership_type, "debe seleccionarse")
       return render :new, status: :unprocessable_entity
     end
+
+    # === 📸 INICIO CAMBIO: PROCESAR FOTO DE CÁMARA (BASE64) ===
+    if params[:client][:photo_base64].present?
+      begin
+        # Separa el encabezado 'data:image/jpeg;base64' del contenido real
+        img_data = params[:client][:photo_base64].split(",")[1]
+        decoded_data = Base64.decode64(img_data)
+
+        # Adjunta la imagen procesada al cliente
+        @client.photo.attach(
+          io: StringIO.new(decoded_data),
+          filename: "cam_#{Time.current.to_i}.jpg",
+          content_type: "image/jpeg"
+        )
+      rescue => e
+        puts "Error procesando foto Base64: #{e.message}"
+      end
+    end
+    # === 📸 FIN CAMBIO ===
 
     ActiveRecord::Base.transaction do
       if @client.next_payment_on.present?
@@ -182,7 +200,8 @@ class ClientsController < ApplicationController
   end
 
   def client_params
-    params.require(:client).permit(:name, :age, :weight, :height, :membership_type, :client_number, :next_payment_on, :enrolled_on, :photo)
+    # === 📸 CAMBIO: AGREGAR :photo_base64 AL FINAL ===
+    params.require(:client).permit(:name, :age, :weight, :height, :membership_type, :client_number, :next_payment_on, :enrolled_on, :photo, :photo_base64)
   end
 
   def default_registration_price_cents(plan)
