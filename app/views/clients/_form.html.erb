@@ -2,10 +2,10 @@
 <% prices = defined?(Client::PRICES) ? Client::PRICES : { "day" => 3000, "week" => 12000, "month" => 26500 } %>
 <% d, w, m = prices["day"]/100.0, prices["week"]/100.0, prices["month"]/100.0 %>
 
-<%# 🔥 CORRECCIÓN FINAL: Usamos 'enctype' explícito para forzar la subida de archivos %>
+<%# 🔥 Formulario con Enctype para subir archivos y Turbo desactivado para evitar conflictos JS %>
 <%= form_with(model: client, local: true, html: { enctype: "multipart/form-data", id: "client-form", data: { turbo: "false" } }) do |f| %>
   
-  <%# === 1. CAMPO OCULTO NECESARIO PARA LA CÁMARA === %>
+  <%# === 1. CAMPO OCULTO (Aquí se guarda la foto de la cámara) === %>
   <%= f.hidden_field :photo_base64, id: "photo_base64_input" %>
 
   <% if client.errors.any? %>
@@ -14,7 +14,7 @@
     </div>
   <% end %>
 
-  <%# === 2. INFORMACIÓN DEL PRÓXIMO SOCIO (SOLO SI ES NUEVO) === %>
+  <%# === 2. AVISO DE PRÓXIMO SOCIO (Solo nuevos) === %>
   <% if @next_id.present? && client.new_record? %>
     <div style="margin-bottom:1rem; padding:10px; border-left:4px solid var(--btn-color); background:rgba(255,255,255,0.03);">
       <span style="font-weight:700; color:var(--text-color);">PRÓXIMO SOCIO: <span style="color:var(--btn-color);">#<%= @next_id %></span></span>
@@ -54,7 +54,7 @@
         </div>
       </div>
       <div class="grid-2" style="gap:.5rem; margin-top:.5rem;">
-        <%# === 3. AGREGAMOS IDs PARA QUE EL SCRIPT ENCUENTRE LAS FECHAS === %>
+        <%# === 3. FECHAS CON IDs PARA AUTOMATIZACIÓN === %>
         <div><%= f.label :enrolled_on, "Inscripción", class: "label" %> <%= f.date_field :enrolled_on, class: "form-input", id: "enrolled_input" %></div>
         <div><%= f.label :next_payment_on, "Próximo pago", class: "label" %> <%= f.date_field :next_payment_on, class: "form-input", id: "next_pay_input" %></div>
       </div>
@@ -63,7 +63,7 @@
     <div class="card">
       <h3 class="card-title mb-2">Foto de Perfil</h3>
 
-      <%# Este es el input oculto que recibe la foto real (Archivo) %>
+      <%# Input tradicional oculto por si quieren subir archivo %>
       <%= f.file_field :photo, accept: "image/*", style: "display:none;", id: "real_file" %>
 
       <div style="background:#000; border:1px solid #444; border-radius:8px; overflow:hidden; min-height:220px; position:relative; display:flex; justify-content:center; align-items:center;">
@@ -73,7 +73,6 @@
         
         <div id="gymPlaceholder" style="text-align:center;">
           <% if client.photo.attached? %>
-             <%# Muestra la foto actual si existe %>
              <%= image_tag client.photo, style: "max-width:120px; border-radius:5px;" %>
              <p style="color:#aaa; font-size:0.8rem;">Actual</p>
           <% else %>
@@ -93,7 +92,7 @@
           <button type="button" class="btn btn-danger" id="btnStop">❌</button>
         </div>
         
-        <button type="button" class="btn btn-success" id="btnConfirmPhoto" style="display:none;">✅ Usar Foto</button>
+        <button type="button" class="btn btn-success" id="btnConfirmPhoto" style="display:none;">✅ Foto Lista</button>
         
         <button type="button" class="btn btn-sm" onclick="document.getElementById('real_file').click()" style="background:#333; margin-top:5px;">📁 Subir Archivo</button>
       </div>
@@ -122,7 +121,7 @@
 
 <script>
 (function() {
-  console.log("🚀 Iniciando script de cámara...");
+  console.log("🚀 Iniciando script de cámara V2 (Auto-Save)...");
 
   let stream = null;
   const video = document.getElementById('gymVideo');
@@ -138,36 +137,29 @@
   const realFile = document.getElementById('real_file');
   const priceInput = document.getElementById('gymPriceInput');
   const memSelect = document.getElementById('mem_select');
-  
-  // Nuevos selectores para fechas
   const nextPayInput = document.getElementById('next_pay_input');
   const enrolledInput = document.getElementById('enrolled_input');
 
-  // === LÓGICA DE PRECIOS Y FECHAS AUTOMÁTICAS ===
+  // === 1. LÓGICA DE PRECIOS Y FECHAS ===
   if(memSelect) {
     memSelect.addEventListener('change', function() {
-      // 1. Precio
+      // Precio
       const txt = this.options[this.selectedIndex].text;
       if(priceInput && txt.includes('$')) priceInput.value = parseFloat(txt.split('$')[1]).toFixed(2);
 
-      // 2. Fecha Automática
+      // Fecha Automática
       const plan = this.value;
-      // Usamos la fecha de inscripción si existe, o la de hoy
       let date = (enrolledInput && enrolledInput.value) ? new Date(enrolledInput.value + "T12:00:00") : new Date();
 
-      if(plan === 'month' || plan === 'mes') {
-        date.setMonth(date.getMonth() + 1);
-      } else if(plan === 'week' || plan === 'semana') {
-        date.setDate(date.getDate() + 7);
-      } else if(plan === 'day' || plan === 'dia') {
-        date.setDate(date.getDate() + 1);
-      }
+      if(plan === 'month' || plan === 'mes') date.setMonth(date.getMonth() + 1);
+      else if(plan === 'week' || plan === 'semana') date.setDate(date.getDate() + 7);
+      else if(plan === 'day' || plan === 'dia') date.setDate(date.getDate() + 1);
 
       if(nextPayInput) nextPayInput.value = date.toISOString().split('T')[0];
     });
   }
 
-  // FUNCIONES DE CÁMARA
+  // === 2. FUNCIONES DE CÁMARA MEJORADAS ===
   async function startCamera(deviceId = null) {
     try {
       const initStream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -199,7 +191,7 @@
       btnConfirm.style.display = 'none';
 
     } catch(err) {
-      alert("⚠️ Error: " + err.message + "\n\nIMPORTANTE: Usa http://localhost:3000 (no 127.0.0.1) para que el navegador permita la cámara.");
+      alert("⚠️ Error cámara: " + err.message + "\nPrueba usando localhost o HTTPS.");
     }
   }
 
@@ -210,22 +202,20 @@
     canvas.getContext('2d').drawImage(video, 0, 0);
     preview.src = canvas.toDataURL('image/jpeg');
     
+    // === 🔥 FIX CRÍTICO: GUARDADO AUTOMÁTICO ===
+    // Guardamos la foto en el input oculto INMEDIATAMENTE al capturar.
+    // Así, aunque el usuario olvide dar click en "Usar Foto", la imagen ya se enviará.
+    const hiddenInput = document.getElementById('photo_base64_input');
+    if(hiddenInput) hiddenInput.value = preview.src;
+
     video.style.display = 'none';
     preview.style.display = 'block';
     actions.style.display = 'none';
-    btnConfirm.style.display = 'block';
+    
+    // Mostramos el botón verde solo como confirmación visual, pero el trabajo ya está hecho
+    btnConfirm.style.display = 'block'; 
     
     stream.getTracks().forEach(t => t.stop());
-  }
-
-  function save() {
-    // === CAMBIO CRÍTICO: Guardamos Base64 en el campo oculto ===
-    const base64Data = preview.src;
-    document.getElementById('photo_base64_input').value = base64Data;
-    
-    alert("✅ Foto capturada lista para guardar.");
-    btnConfirm.style.display = 'none';
-    select.style.display = 'none';
   }
 
   function stop() {
@@ -237,12 +227,12 @@
     select.style.display = 'none';
   }
 
-  // LISTENERS DIRECTOS
   if(btnStart) btnStart.onclick = () => startCamera();
   if(select) select.onchange = () => startCamera(select.value);
   if(btnSnap) btnSnap.onclick = snap;
   if(btnStop) btnStop.onclick = stop;
-  if(btnConfirm) btnConfirm.onclick = save;
+  // El botón verde ahora solo sirve para cerrar la UI de la cámara si quieren
+  if(btnConfirm) btnConfirm.onclick = () => { btnConfirm.style.display = 'none'; select.style.display = 'none'; };
 
 })();
 </script>
