@@ -2,7 +2,7 @@ Rails.application.routes.draw do
   # 🔌 1. HABILITAR WEBSOCKETS
   mount ActionCable.server => "/cable"
 
-  # CONFIGURACIÓN DE USUARIOS (Devise)
+  # CONFIGURACIÓN DE USUARIOS (Devise - Admins/Staff)
   devise_for :users
   devise_scope :user do
     unauthenticated { root to: "devise/sessions#new" }
@@ -27,7 +27,7 @@ Rails.application.routes.draw do
       post :check_entry
       get  :check_entry
 
-      # 📥 C# descarga huellas aquí
+      # 📥 C# descarga huellas aquí (Ruta antigua, la mantenemos por si acaso)
       get :fingerprints_data
 
       # Botón "Encender Lector"
@@ -86,6 +86,17 @@ Rails.application.routes.draw do
 
   get  "memberships",          to: "memberships#new",      as: :memberships
   post "memberships/checkout", to: "memberships#checkout", as: :memberships_checkout
+
+  # =========================================================
+  # 🔌 API PARA ESCRITORIO (Sincronización C#)
+  # =========================================================
+  # Esta es la parte nueva que acabamos de agregar:
+  namespace :api do
+    namespace :v1 do
+      # Ruta: http://localhost:3000/api/v1/sync_users
+      get "sync_users", to: "users#sync_users"
+    end
+  end
 
   # ADMIN
   namespace :admin do
