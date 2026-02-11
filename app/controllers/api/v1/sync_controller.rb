@@ -1,60 +1,47 @@
 require "base64"
 
 class Api::V1::SyncController < ApplicationController
-  # Saltamos la verificación para que C# pueda entrar sin problemas
   skip_before_action :verify_authenticity_token, raise: false
 
   def full_sync
-    begin
-      # 1. PROCESAR CLIENTES
-      clientes_data = Client.all.map do |c|
-        huella_base64 = nil
+    # BUSCAMOS LAS HUELLAS "A LA FUERZA"
+    clientes_data = Client.all.map do |c|
+      # 1. Intentamos encontrar la huella en cualquier columna probable
+      raw = c.try(:fingerprint) || c.try(:huella) || c.try(:fingerprint_template) || c.try(:template)
 
-        if c.respond_to?(:fingerprint) && c.fingerprint.present?
-          raw_data = c.fingerprint
-          # Limpieza binaria para Postgres (\x)
-          if raw_data.is_a?(String) && raw_data.start_with?("\\x")
-            raw_data = [ raw_data[2..-1] ].pack("H*")
-          end
-          huella_base64 = Base64.strict_encode64(raw_data)
+      huella_final = nil
+
+      if raw.present?
+        # 2. LIMPIEZA PROFUNDA DE FORMATO POSTGRES
+        # Si Postgres nos da el formato "\x504B...", lo convertimos a binario real
+        if raw.is_a?(String) && raw.start_with?("\\x")
+          # Quitamos el \x y empaquetamos los hexas a bytes
+          raw = [ raw[2..-1] ].pack("H*")
         end
 
-        {
-          id: c.id,
-          name: c.try(:name) || c.try(:full_name) || "Sin Nombre",
-          fingerprint_template: huella_base64,
-          # Usamos try para evitar errores si la columna se llama distinto
-          expiration_date: c.try(:next_payment_on) || c.try(:expiration_date),
-          registration_date: c.created_at
-        }
+        # 3. Convertimos a Base64 Estricto (Sin saltos de línea)
+        huella_final = Base64.strict_encode64(raw)
       end
 
-      # 2. PROCESAR PRODUCTOS
-      productos_data = Product.all.map do |p|
-        {
-          id: p.id,
-          name: p.name,
-          # Manejamos si usas centavos o moneda normal
-          price: p.try(:price_cents) ? (p.price_cents.to_f / 100.0) : p.try(:price).to_f,
-          stock: p.try(:stock) || 0
-        }
-      end
-
-      # 3. ENVIAR RESPUESTA EXITOSA
-      render json: {
-        clientes: clientes_data,
-        productos: productos_data,
-        status: "success"
+      {
+        id: c.id,
+        name: c.try(:name) || c.try(:full_name) || "Sin Nombre",
+        # ESTE ES EL CAMPO CLAVE QUE RECIBIRÁ C#:
+        fingerprint_template: huella_final,
+        expiration_date: c.try(:next_payment_on) || c.try(:expiration_date),
+        registration_date: c.created_at,
+        photo_path: c.respond_to?(:photo) && c.photo.attached? ? url_for(c.photo) : nil
       }
-
-    rescue => e
-      # Si algo falla, el servidor te enviará el mensaje de error en JSON
-      # en lugar de darte el Error 500 genérico.
-      render json: {
-        status: "error",
-        message: e.message,
-        location: e.backtrace.first
-      }, status: 500
     end
+
+    render json: {
+      clientes: clientes_data,
+      # Enviamos productos también para que no falle la tienda
+      productos: Product.all.map { |p| { id: p.id, name: p.name, price: p.try(:price_cents).to_f/100, stock: p.try(:stock) || 0 } },
+      status: "success"
+    }
+  rescue => e
+    # Si falla, te dirá exactamente por qué en el JSON
+    render json: { status: "error", message: e.message, backtrace: e.backtrace.first }, status: 500
   end
 end
