@@ -4,44 +4,55 @@ class Api::V1::SyncController < ApplicationController
   skip_before_action :verify_authenticity_token, raise: false
 
   def full_sync
-    # BUSCAMOS LAS HUELLAS "A LA FUERZA"
-    clientes_data = Client.all.map do |c|
-      # 1. Intentamos encontrar la huella en cualquier columna probable
-      raw = c.try(:fingerprint) || c.try(:huella) || c.try(:fingerprint_template) || c.try(:template)
+    # 1. Buscamos solo clientes que tengan huella para no perder tiempo
+    clientes_con_huella = Client.where("fingerprint IS NOT NULL")
 
-      huella_final = nil
+    clientes_data = clientes_con_huella.map do |c|
+      huella_limpia = nil
 
-      if raw.present?
-        # 2. LIMPIEZA PROFUNDA DE FORMATO POSTGRES
-        # Si Postgres nos da el formato "\x504B...", lo convertimos a binario real
+      # --- EL SECRETO DE LOS 2176 BYTES ---
+      if c.fingerprint.present?
+        raw = c.fingerprint
+
+        # Si Postgres nos da el formato de texto "\x..." (Hexadecimal)
         if raw.is_a?(String) && raw.start_with?("\\x")
-          # Quitamos el \x y empaquetamos los hexas a bytes
+          # Quitamos la "x" y convertimos el texto a archivo real
+          # Esto bajará el peso de 2176 a aprox 1088 bytes (lo correcto)
           raw = [ raw[2..-1] ].pack("H*")
         end
 
-        # 3. Convertimos a Base64 Estricto (Sin saltos de línea)
-        huella_final = Base64.strict_encode64(raw)
+        # Convertimos a Base64 para enviarlo a C#
+        huella_limpia = Base64.strict_encode64(raw)
       end
+      # ------------------------------------
 
       {
         id: c.id,
-        name: c.try(:name) || c.try(:full_name) || "Sin Nombre",
-        # ESTE ES EL CAMPO CLAVE QUE RECIBIRÁ C#:
-        fingerprint_template: huella_final,
-        expiration_date: c.try(:next_payment_on) || c.try(:expiration_date),
+        name: c.name || "Cliente #{c.id}",
+        fingerprint_template: huella_limpia, # C# recibirá esto
+        expiration_date: c.next_payment_on,
         registration_date: c.created_at,
-        photo_path: c.respond_to?(:photo) && c.photo.attached? ? url_for(c.photo) : nil
+        # Si tienes ActiveStorage configurado, usa esto, sino envía null
+        photo_path: nil
+      }
+    end
+
+    # Agregamos los productos para que la tienda funcione
+    productos_data = Product.all.map do |p|
+      {
+        id: p.id,
+        name: p.name,
+        price: p.respond_to?(:price_cents) ? p.price_cents.to_f/100 : 0,
+        stock: p.respond_to?(:stock) ? p.stock : 0
       }
     end
 
     render json: {
       clientes: clientes_data,
-      # Enviamos productos también para que no falle la tienda
-      productos: Product.all.map { |p| { id: p.id, name: p.name, price: p.try(:price_cents).to_f/100, stock: p.try(:stock) || 0 } },
+      productos: productos_data,
       status: "success"
     }
   rescue => e
-    # Si falla, te dirá exactamente por qué en el JSON
-    render json: { status: "error", message: e.message, backtrace: e.backtrace.first }, status: 500
+    render json: { status: "error", message: e.message }, status: 500
   end
 end
