@@ -1,48 +1,53 @@
 require "base64"
 
 class Api::V1::SyncController < ApplicationController
+  # ESTAS DOS LÍNEAS ELIMINAN EL ERROR 422
+  protect_from_forgery with: :null_session
   skip_before_action :verify_authenticity_token, raise: false
 
   def full_sync
-    # 1. Buscamos solo clientes que tengan huella para no perder tiempo
-    clientes_con_huella = Client.where("fingerprint IS NOT NULL")
+    clientes_data = []
 
-    clientes_data = clientes_con_huella.map do |c|
-      huella_limpia = nil
+    # Procesamos uno por uno para que si uno falla, no detenga a los demás
+    Client.find_each do |c|
+      begin
+        huella_limpia = nil
 
-      # --- EL SECRETO DE LOS 2176 BYTES ---
-      if c.fingerprint.present?
-        raw = c.fingerprint
+        if c.fingerprint.present?
+          raw = c.fingerprint
 
-        # Si Postgres nos da el formato de texto "\x..." (Hexadecimal)
-        if raw.is_a?(String) && raw.start_with?("\\x")
-          # Quitamos la "x" y convertimos el texto a archivo real
-          # Esto bajará el peso de 2176 a aprox 1088 bytes (lo correcto)
-          raw = [ raw[2..-1] ].pack("H*")
+          # DETECCIÓN Y CORRECCIÓN DE FORMATO POSTGRES (HEXADECIMAL)
+          # Si empieza con "\x", es texto hexadecimal que debe ser binario
+          if raw.is_a?(String) && raw.start_with?("\\x")
+            # Esto convierte los 2176 bytes de texto en 1088 bytes de archivo real
+            raw = [ raw[2..-1] ].pack("H*")
+          end
+
+          # Convertimos a Base64 para que viaje seguro a C#
+          huella_limpia = Base64.strict_encode64(raw)
         end
 
-        # Convertimos a Base64 para enviarlo a C#
-        huella_limpia = Base64.strict_encode64(raw)
+        clientes_data << {
+          id: c.id,
+          name: c.try(:name) || c.try(:full_name) || "Cliente #{c.id}",
+          fingerprint_template: huella_limpia,
+          expiration_date: c.try(:next_payment_on) || c.try(:expiration_date),
+          registration_date: c.created_at,
+          photo_path: nil
+        }
+      rescue => e
+        # Si un cliente falla, lo imprimimos en el log de Render pero NO rompemos la carga
+        puts "Error procesando cliente #{c.id}: #{e.message}"
+        next
       end
-      # ------------------------------------
-
-      {
-        id: c.id,
-        name: c.name || "Cliente #{c.id}",
-        fingerprint_template: huella_limpia, # C# recibirá esto
-        expiration_date: c.next_payment_on,
-        registration_date: c.created_at,
-        # Si tienes ActiveStorage configurado, usa esto, sino envía null
-        photo_path: nil
-      }
     end
 
-    # Agregamos los productos para que la tienda funcione
+    # Productos
     productos_data = Product.all.map do |p|
       {
         id: p.id,
         name: p.name,
-        price: p.respond_to?(:price_cents) ? p.price_cents.to_f/100 : 0,
+        price: p.respond_to?(:price_cents) ? (p.price_cents.to_f / 100.0) : 0.0,
         stock: p.respond_to?(:stock) ? p.stock : 0
       }
     end
