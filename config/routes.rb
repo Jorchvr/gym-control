@@ -27,7 +27,7 @@ Rails.application.routes.draw do
       post :check_entry
       get  :check_entry
 
-      # 📥 C# descarga huellas aquí (Ruta antigua, la mantenemos por si acaso)
+      # 📥 C# descarga huellas aquí (Ruta antigua, la mantenemos por compatibilidad)
       get :fingerprints_data
 
       # Botón "Encender Lector"
@@ -90,11 +90,14 @@ Rails.application.routes.draw do
   # =========================================================
   # 🔌 API PARA ESCRITORIO (Sincronización C#)
   # =========================================================
-  # Esta es la parte nueva que acabamos de agregar:
   namespace :api do
     namespace :v1 do
-      # Ruta: http://localhost:3000/api/v1/sync_users
+      # 1. Sincronización antigua (Solo usuarios/staff)
       get "sync_users", to: "users#sync_users"
+
+      # 2. NUEVA SINCRONIZACIÓN MAESTRA (Clientes + Huellas + Productos + Ventas)
+      # Esta es la que usa tu nuevo código de C#
+      get "full_sync",  to: "sync#full_sync"
     end
   end
 
