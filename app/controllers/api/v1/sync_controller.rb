@@ -4,72 +4,42 @@ class Api::V1::SyncController < ApplicationController
   skip_before_action :verify_authenticity_token, raise: false
 
   def full_sync
-    # 1. CLIENTES
+    # 1. PROCESAR CLIENTES Y LIMPIAR HUELLAS
     clientes_data = Client.all.map do |c|
-      # --- CORRECCIÓN DE HUELLA ---
-      huella_final = nil
+      huella_base64 = nil
 
       if c.fingerprint.present?
-        raw = c.fingerprint
+        raw_data = c.fingerprint
 
-        # Detectamos si Postgres nos dio una cadena Hexadecimal (empieza con \x)
-        if raw.is_a?(String) && raw.start_with?("\\x")
-          # Convertimos de Hexadecimal String a Binario Puro
-          # [2..-1] quita el "\x" del principio
-          # pack('H*') convierte los pares de letras/numeros a bytes reales
-          raw = [ raw[2..-1] ].pack("H*")
+        # Si Postgres entrega un String Hexadecimal (ej: "\x504b...")
+        if raw_data.is_a?(String) && raw_data.start_with?("\\x")
+          # Quitamos el "\x" y convertimos el texto hex a binario puro
+          raw_data = [ raw_data[2..-1] ].pack("H*")
         end
 
-        # Ahora sí, convertimos el binario limpio a Base64
-        huella_final = Base64.strict_encode64(raw)
+        # Convertimos el binario limpio a Base64 estricto
+        huella_base64 = Base64.strict_encode64(raw_data)
       end
-      # ----------------------------
 
       {
         id: c.id,
         name: c.name,
-        fingerprint_template: huella_final, # Usamos la huella corregida
+        fingerprint_template: huella_base64,
         expiration_date: c.next_payment_on,
         registration_date: c.created_at,
         photo_path: c.photo.attached? ? url_for(c.photo) : nil
       }
     end
 
-    # 2. PRODUCTOS
-    productos_data = Product.all.map do |p|
-      {
-        id: p.id,
-        name: p.name,
-        price: p.price_cents.to_f / 100.0,
-        stock: p.stock
-      }
-    end
+    # 2. PROCESAR OTROS DATOS
+    productos_data = Product.all.map { |p| { id: p.id, name: p.name, price: p.price_cents.to_f/100, stock: p.stock } }
+    usuarios_data = User.all.map { |u| { name: u.email, role: u.admin? ? "Admin" : "User" } }
 
-    # 3. USUARIOS
-    usuarios_data = User.all.map do |u|
-      {
-        name: u.email.split("@").first,
-        password: u.encrypted_password,
-        role: u.try(:admin?) ? "Admin" : "User"
-      }
-    end
-
-    # 4. VENTAS
-    ventas_data = Sale.where("created_at > ?", 30.days.ago).map do |s|
-      {
-        concept: "Venta ##{s.id}",
-        total: s.amount_cents.to_f / 100.0,
-        payment_method: s.payment_method,
-        date: s.occurred_at,
-        username: s.user&.email || "Sistema"
-      }
-    end
-
+    # 3. ENVIAR TODO EL PAQUETE
     render json: {
       clientes: clientes_data,
       productos: productos_data,
-      usuarios: usuarios_data,
-      ventas: ventas_data
+      usuarios: usuarios_data
     }
   end
 end
